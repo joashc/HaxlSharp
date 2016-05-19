@@ -3,21 +3,27 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
-    public interface Fetch<A> 
+    public class Fetch<A>
+    {
+        public Task<Result<A>> Result { get; }
+        public Fetch(Task<Result<A>> result)
+        {
+            Result = result;
+        }
+    }
+
+    public interface Result<A>
     {
         X Run<X>(Fetcher<A, X> fetcher);
     }
 
-    public interface Result<A> : Fetch<A>
-    {
-    }
-
     public class Done<A> : Result<A>
     {
-        public readonly A result; 
+        public readonly A result;
         public Done(A result)
         {
             this.result = result;
@@ -31,9 +37,9 @@ namespace HaxlSharp
 
     public class Blocked<A> : Result<A>
     {
-        public readonly Task<Fetch<A>> fetch;
+        public readonly Fetch<A> fetch;
         public readonly IEnumerable<Task> blockedRequests;
-        public Blocked(Task<Fetch<A>> fetch, IEnumerable<Task> blockedRequests)
+        public Blocked(Fetch<A> fetch, IEnumerable<Task> blockedRequests)
         {
             this.fetch = fetch;
             this.blockedRequests = blockedRequests;
@@ -45,64 +51,67 @@ namespace HaxlSharp
         }
     }
 
-    public class Bind<B, A> : Fetch<A>
-    {
-        public readonly Fetch<B> fetch;
-        public readonly Func<B, Fetch<A>> bind;
-        public Bind(Fetch<B> fetch, Func<B, Fetch<A>> bind)
-        {
-            this.fetch = fetch;
-            this.bind = bind;
-        }
-
-        public X Run<X>(Fetcher<A, X> fetcher)
-        {
-            return fetcher.Bind(fetch, bind);
-        }
-    }
-
-    public class Cons<B, A> : Fetch<A>
-    {
-        public readonly Fetch<B> fetch;
-        public readonly Fetch<A> fetchA;
-        public Cons(Fetch<B> fetch, Fetch<A> fetchA)
-        {
-            this.fetch = fetch;
-            this.fetchA = fetchA;
-        }
-
-        public X Run<X>(Fetcher<A, X> fetcher)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
     public static class FetchExt
     {
-        public static Cons<B, A> Cons<A, B, C>(Fetch<A> f1, Fetch<B> f2, Fetch<C> f3)
-        {
-            return new Cons<B, A>(f2, new Cons<C, A>(f3, f1));
-        }
         public static Fetch<B> Select<A, B>(this Fetch<A> fetch, Func<A, B> f)
         {
-            return new Bind<A, B>(fetch, a => new Done<B>(f(a)));
+            var task = Task.Run(async () =>
+            {
+                var resultA = await fetch.Result;
+                if (resultA is Done<A>)
+                {
+                    var doneA = resultA as Done<A>;
+                    return Done(f(doneA.result));
+                }
+                if (resultA is Blocked<A>)
+                {
+                    var blockedA = resultA as Blocked<A>;
+                    var taskB = Task.Run(async () =>
+                    {
+                        var blockedResult = await blockedA.fetch.Result;
+                        var a = await blockedResult.RunFetch();
+                        return Done(f(a));
+                    });
+                    return Blocked(Fetch(taskB), blockedA.blockedRequests);
+                }
+                throw new ArgumentException();
+            });
+            return new Fetch<B>(task);
         }
 
         public static Fetch<B> SelectMany<A, B>(this Fetch<A> fetch, Func<A, Fetch<B>> bind)
         {
-            return new Bind<A, B>(fetch, bind);
+            var task = Task.Run(async () =>
+            {
+                var resultA = await fetch.Result;
+                if (resultA is Done<A>)
+                {
+                    var doneA = resultA as Done<A>;
+                    return bind(doneA.result);
+                }
+                if (resultA is Blocked<A>)
+                {
+                    var blockedA = resultA as Blocked<A>;
+                    var newFetch = JoinFetch(blockedA.fetch.Select(bind));
+                    return Fetch(Blocked(newFetch, blockedA.blockedRequests));
+                }
+                throw new ArgumentException();
+            });
+            return task.Result;
+        }
+
+        public static Fetch<A> JoinFetch<A>(Fetch<Fetch<A>> nested)
+        {
+            var result = nested.Result.Result.RunFetch().Result;
+            return result;
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> fetch, Func<A, Fetch<B>> bind, Func<A, B, C> project)
         {
-            return new Bind<A, C>(fetch, a =>
-                new Bind<B, C>(bind(a), b => 
-                    new Done<C>(project(a, b))
-                )
-            );
+            return JoinFetch(fetch.Select(t => bind(t).Select(u => project(t, u))));
         }
 
-        public static Task<A> Fetch<A> (this Fetch<A> fetch)
+        public static Task<A> RunFetch<A>(this Result<A> fetch)
         {
             return fetch.Run(new RunFetch<A>());
         }
@@ -131,7 +140,7 @@ namespace HaxlSharp
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// Default to using recursion depth limit of 100
         /// </summary>
         public static Fetch<IEnumerable<A>> Sequence<A>(this IEnumerable<Fetch<A>> dists)
@@ -163,10 +172,10 @@ namespace HaxlSharp
         private static Fetch<IEnumerable<A>> RunSequence<A>(IEnumerable<Fetch<A>> dists)
         {
             return dists.Aggregate(
-                Haxl.Done<IEnumerable<A>>(new List<A>()),
+                Fetch(Done<IEnumerable<A>>(new List<A>())),
                 (listFetch, aFetch) => from a in aFetch
-                                     from list in listFetch
-                                     select Haxl.Append(list, a)
+                                       from list in listFetch
+                                       select Append(list, a)
             );
         }
 

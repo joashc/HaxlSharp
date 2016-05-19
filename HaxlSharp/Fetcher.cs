@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,23 +10,22 @@ namespace HaxlSharp
     public interface Fetcher<A, X>
     {
         X Done(A result);
-        X Blocked(Task<Fetch<A>> fetch, IEnumerable<Task> blockedRequests);
-        X Bind<B>(Fetch<B> fetch, Func<B, Fetch<A>> bind);
+        X Blocked(Fetch<A> fetch, IEnumerable<Task> blockedRequests);
     }
 
     public class RunFetch<A> : Fetcher<A, Task<A>>
     {
-        public Task<A> Bind<B>(Fetch<B> fetch, Func<B, Fetch<A>> bind)
+        public async Task<A> Blocked(Fetch<A> fetch, IEnumerable<Task> blockedRequests)
         {
-            return bind(fetch.Run(new RunFetch<B>()).Result).Run(this);
-        }
-
-        public async Task<A> Blocked(Task<Fetch<A>> fetch, IEnumerable<Task> blockedRequests)
-        {
-            blockedRequests.All(y => { y.Start(); return true; });
+            Debug.WriteLine("Fetching");
+            blockedRequests.All(r =>
+            {
+                r.Start();
+                return true;
+            });
             await Task.WhenAll(blockedRequests);
-            var x = await fetch;
-            return x.Run(this).Result;
+            var fetchDone = await fetch.Result;
+            return await fetchDone.Run(this);
         }
 
         public Task<A> Done(A result)

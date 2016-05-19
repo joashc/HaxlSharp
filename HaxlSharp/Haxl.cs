@@ -15,51 +15,67 @@ namespace HaxlSharp
             return appendList;
         }
 
-        public static Fetch<A> Done<A>(A result)
+        public static Result<A> Done<A>(A result)
         {
             return new Done<A>(result);
         }
 
-        public static Fetch<A> Blocked<A>(Task<Fetch<A>> fetch, IEnumerable<Task> blockedRequests)
+        public static Result<A> Blocked<A>(Fetch<A> fetch, IEnumerable<Task> blockedRequests)
         {
             return new Blocked<A>(fetch, blockedRequests);
         }
 
+        public static Fetch<A> Fetch<A>(Task<Result<A>> fetchTask)
+        {
+            return new Fetch<A>(fetchTask);
+        }
+
+        public static Fetch<A> Fetch<A>(Result<A> result)
+        {
+            return new Fetch<A>(Task.FromResult(result));
+        }
+
         public static Fetch<C> Applicative<A, B, C>(Fetch<A> f1, Fetch<B> f2, Func<A, B, C> project)
         {
-            if (f1 is Done<A> && f2 is Done<A>)
+            var task = Task.Run(async () =>
             {
-                var r1 = f1.Fetch();
-                var r2 = f2.Fetch();
-                await Task.WhenAll(r1, r2);
-                return Done(project(r1.Result, r2.Result));
-            }
-            if (f1 is Done<A> && f2 is Blocked<B>)
-            {
-                var blocked2 = f2 as Blocked<B>;
-                var fetchB = await blocked2.fetch;
-                var newFetch = Applicative(f1, fetchB, project);
-                return Blocked(newFetch, blocked2.blockedRequests);
-            }
-            if (f1 is Blocked<A> && f2 is Done<B>)
-            {
-                var blocked1 = f1 as Blocked<A>;
-                var fetchA = await blocked1.fetch;
-                var newFetch = Applicative(fetchA, f2, project);
-                return Blocked(newFetch, blocked1.blockedRequests);
-            }
-            if (f1 is Blocked<A> && f2 is Blocked<B>)
-            {
-                var blockedA = f1 as Blocked<A>;
-                var blockedB = f2 as Blocked<B>;
+                var resultA = await f1.Result;
+                var resultB = await f2.Result;
+                if (resultA is Done<A> && resultB is Done<B>)
+                {
+                    var doneA = resultA as Done<A>;
+                    var doneB = resultB as Done<B>;
+                    return Done(project(doneA.result, doneB.result));
+                }
+                if (resultA is Done<A> && resultB is Blocked<B>)
+                {
+                    var doneA = resultA as Done<A>;
+                    var blockedB = resultB as Blocked<B>;
+                    var newFetch = Applicative(Fetch(doneA), blockedB.fetch, project);
+                    return Blocked(newFetch, blockedB.blockedRequests);
+                }
+                if (resultA is Blocked<A> && resultB is Done<B>)
+                {
+                    var blockedA = resultA as Blocked<A>;
+                    var doneB = resultB as Done<B>;
+                    var fetchA = blockedA.fetch;
+                    var newFetch = Applicative(fetchA, Fetch(doneB), project);
+                    return Blocked(newFetch, blockedA.blockedRequests);
+                }
+                if (resultA is Blocked<A> && resultB is Blocked<B>)
+                {
+                    var blockedA = resultA as Blocked<A>;
+                    var blockedB = resultB as Blocked<B>;
 
-                var fetchA = await blockedA.fetch;
-                var fetchB = await blockedB.fetch;
-                var newFetch = Applicative(fetchA, fetchB, project);
+                    var fetchA = blockedA.fetch;
+                    var fetchB = blockedB.fetch;
+                    var newFetch = Applicative(fetchA, fetchB, project);
 
-                return Blocked(newFetch, blockedA.blockedRequests.Concat(blockedB.blockedRequests));
-            }
-            throw new ArgumentException();
+                    return Blocked(newFetch, blockedA.blockedRequests.Concat(blockedB.blockedRequests));
+                }
+                throw new ArgumentException();
+            });
+            return new Fetch<C>(task);
         }
     }
 }

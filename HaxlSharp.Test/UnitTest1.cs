@@ -91,7 +91,7 @@ namespace HaxlSharp.Test
             return new FetchPostViews(postId).DataFetch(fetcher);
         }
 
-        public static Task<Fetch<Tuple<PostInfo, string>>> GetPostDetails(int postId)
+        public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
         {
             return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
         }
@@ -103,8 +103,9 @@ namespace HaxlSharp.Test
         {
             return new Task<A>(() =>
             {
-                Debug.WriteLine("Fetching");
-                return request.RunRequest();
+                var result = request.RunRequest();
+                Debug.WriteLine(result);
+                return result;
             });
         }
     }
@@ -124,20 +125,13 @@ namespace HaxlSharp.Test
 
 
             var fetcher = new RunFetch<IEnumerable<PostInfo>>();
-            var results = await getAllPostsInfo.Run(fetcher);
+            var results = await (await getAllPostsInfo.Result).RunFetch();
 
-            foreach (var result in results)
-            {
-                Debug.WriteLine(result);
-            }
-
-            var detail = await Blog.GetPostDetails(0);
-            var somethig = await detail.Fetch();
-
-            Debug.WriteLine(somethig.Item1);
-            Debug.WriteLine(somethig.Item2);
-
-
+            var detail = Blog.GetPostDetails(3);
+            var something = await detail.Result;
+            var some2 = await something.RunFetch();
+            Debug.WriteLine(some2.Item1);
+            Debug.WriteLine(some2.Item2);
         }
 
         [TestMethod]

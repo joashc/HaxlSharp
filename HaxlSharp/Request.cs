@@ -65,9 +65,9 @@ namespace HaxlSharp
         public static Fetch<A> DataFetch<A>(this Request<A> request, Fetcher fetcher)
         {
             var br = new BlockedRequest<A>(request, fetcher.AwaitResult(request));
-            var cont = br.fetchTask.ContinueWith(a => new Done<A>(a.Result) as Fetch<A>);
+            var cont = Fetch(br.fetchTask.ContinueWith(a => new Done<A>(a.Result) as Result<A>));
             var awaiter = new Task(() => { br.fetchTask.Start(); br.fetchTask.Wait(); });
-            return new Blocked<A>(cont, new List<Task> { awaiter });
+            return Fetch(new Blocked<A>(cont, new List<Task> { awaiter }));
         }
 
     }
