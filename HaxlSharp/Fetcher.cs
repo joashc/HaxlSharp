@@ -17,7 +17,7 @@ namespace HaxlSharp
     {
         public async Task<A> Blocked(Fetch<A> fetch, IEnumerable<Task> blockedRequests)
         {
-            Debug.WriteLine("Fetching");
+            Debug.WriteLine("==== Batch ====");
             blockedRequests.All(r =>
             {
                 r.Start();

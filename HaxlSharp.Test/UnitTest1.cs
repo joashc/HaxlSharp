@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Diagnostics;
 using static HaxlSharp.Haxl;
+using System.Linq.Expressions;
 
 namespace HaxlSharp.Test
 {
@@ -93,7 +94,11 @@ namespace HaxlSharp.Test
 
         public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
         {
-            return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
+            //return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
+            var x = from info in FetchPostInfo(postId)
+                    from content in FetchPostContent(postId)
+                    select new Tuple<PostInfo, string>(info, content);
+            return x;
         }
     }
 
@@ -104,7 +109,7 @@ namespace HaxlSharp.Test
             return new Task<A>(() =>
             {
                 var result = request.RunRequest();
-                Debug.WriteLine(result);
+                Debug.WriteLine($"Fetched: {result}");
                 return result;
             });
         }
@@ -118,7 +123,7 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task QuerySyntax()
         {
-            var getAllPostsInfo = 
+            var getAllPostsInfo =
                 from postIds in Blog.FetchPosts()
                 from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
                 select postInfo;
@@ -130,8 +135,6 @@ namespace HaxlSharp.Test
             var detail = Blog.GetPostDetails(3);
             var something = await detail.Result;
             var some2 = await something.RunFetch();
-            Debug.WriteLine(some2.Item1);
-            Debug.WriteLine(some2.Item2);
         }
 
         [TestMethod]
@@ -144,5 +147,19 @@ namespace HaxlSharp.Test
             x += 1;
             Assert.AreEqual(2, x);
         }
+
+        [TestMethod]
+        public void QueryTest()
+        {
+            var global = 6;
+            var x = from free1 in new Identity<int>(3)
+                    from free2 in new Identity<int>(free1 + 3)
+                    from free3 in new Identity<int>(free2)
+                    from free4 in new Identity<int>(global)
+                    select free3 + free4;
+
+            x.Run(new Query<int>());
+        }
+
     }
 }

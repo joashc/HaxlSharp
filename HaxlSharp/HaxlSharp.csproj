@@ -40,9 +40,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ExpressionParser.cs" />
     <Compile Include="Fetcher.cs" />
     <Compile Include="Haxl.cs" />
     <Compile Include="Fetch.cs" />
+    <Compile Include="HFetch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Request.cs" />
   </ItemGroup>
