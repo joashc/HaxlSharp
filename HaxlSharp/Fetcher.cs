@@ -9,7 +9,7 @@ namespace HaxlSharp
 {
     public interface Fetcher<A, X>
     {
-        X Done(A result);
+        X Done(Func<A> result);
         X Blocked(Fetch<A> fetch, IEnumerable<Task> blockedRequests);
     }
 
@@ -24,13 +24,13 @@ namespace HaxlSharp
                 return true;
             });
             await Task.WhenAll(blockedRequests);
-            var fetchDone = fetch.Result();
+            var fetchDone = fetch.Result;
             return await fetchDone.Run(this);
         }
 
-        public Task<A> Done(A result)
+        public Task<A> Done(Func<A> result)
         {
-            return Task.FromResult(result);
+            return Task.Factory.StartNew(result);
         }
     }
 }

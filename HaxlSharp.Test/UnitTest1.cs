@@ -94,7 +94,7 @@ namespace HaxlSharp.Test
 
         public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
         {
-            //return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
+            return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
             var x = from info in FetchPostInfo(postId)
                     from content in FetchPostContent(postId)
                     select new Tuple<PostInfo, string>(info, content);
@@ -130,10 +130,10 @@ namespace HaxlSharp.Test
 
 
             var fetcher = new RunFetch<IEnumerable<PostInfo>>();
-            var results = await getAllPostsInfo.Result().RunFetch();
+            var results = await getAllPostsInfo.Result.RunFetch();
 
             var detail = Blog.GetPostDetails(3);
-            var something = detail.Result();
+            var something = detail.Result;
             var some2 = await something.RunFetch();
         }
 

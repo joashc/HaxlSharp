@@ -23,8 +23,8 @@ namespace HaxlSharp
 
     public class Done<A> : Result<A>
     {
-        public readonly A result;
-        public Done(A result)
+        public readonly Func<A> result;
+        public Done(Func<A> result)
         {
             this.result = result;
         }
@@ -55,11 +55,11 @@ namespace HaxlSharp
     {
         public static Fetch<B> Select<A, B>(this Fetch<A> fetch, Func<A, B> f)
         {
-            var resultA = fetch.Result();
+            var resultA = fetch.Result;
             if (resultA is Done<A>)
             {
                 var doneA = resultA as Done<A>;
-                return Fetch(Done(f(doneA.result)));
+                return Fetch(Done(() => f(doneA.result())));
             }
             if (resultA is Blocked<A>)
             {
@@ -71,11 +71,11 @@ namespace HaxlSharp
 
         public static Fetch<B> SelectMany<A, B>(this Fetch<A> fetch, Func<A, Fetch<B>> bind)
         {
-            var resultA = fetch.Result();
+            var resultA = fetch.Result;
             if (resultA is Done<A>)
             {
                 var doneA = resultA as Done<A>;
-                return bind(doneA.result);
+                return bind(doneA.result());
             }
             if (resultA is Blocked<A>)
             {
@@ -88,7 +88,7 @@ namespace HaxlSharp
 
         public static Fetch<A> JoinFetch<A>(Fetch<Fetch<A>> nested)
         {
-            var result = nested.Result().RunFetch().Result;
+            var result = nested.Result.RunFetch().Result;
             return result;
         }
 
@@ -158,7 +158,7 @@ namespace HaxlSharp
         private static Fetch<IEnumerable<A>> RunSequence<A>(IEnumerable<Fetch<A>> dists)
         {
             return dists.Aggregate(
-                Fetch(Done<IEnumerable<A>>(new List<A>())),
+                Fetch(Done<IEnumerable<A>>(() => new List<A>())),
                 (listFetch, aFetch) => from a in aFetch
                                        from list in listFetch
                                        select Append(list, a)

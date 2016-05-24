@@ -15,7 +15,7 @@ namespace HaxlSharp
             return appendList;
         }
 
-        public static Result<A> Done<A>(A result)
+        public static Result<A> Done<A>(Func<A> result)
         {
             return new Done<A>(result);
         }
@@ -26,11 +26,6 @@ namespace HaxlSharp
         }
 
         public static Fetch<A> Fetch<A>(Result<A> result)
-        {
-            return new Fetch<A>(() => result);
-        }
-
-        public static Fetch<A> Fetch<A>(Func<Result<A>> result)
         {
             return new Fetch<A>(result);
         }
@@ -43,7 +38,7 @@ namespace HaxlSharp
             {
                 var doneA = resultA as Done<A>;
                 var doneB = resultB as Done<B>;
-                return Fetch(Done(project(doneA.result, doneB.result)));
+                return Fetch(Done(() => project(doneA.result(), doneB.result())));
             }
             if (resultA is Done<A> && resultB is Blocked<B>)
             {
