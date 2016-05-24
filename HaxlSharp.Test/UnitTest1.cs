@@ -68,31 +68,31 @@ namespace HaxlSharp.Test
 
     public static class Blog
     {
-        public static FetchMonad<IEnumerable<int>> FetchPosts()
+        public static Fetch<IEnumerable<int>> FetchPosts()
         {
             var fetcher = new MockFetcher();
             return new FetchPosts().DataFetch(fetcher);
         }
 
-        public static FetchMonad<PostInfo> FetchPostInfo(int postId)
+        public static Fetch<PostInfo> FetchPostInfo(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostInfo(postId).DataFetch(fetcher);
         }
 
-        public static FetchMonad<string> FetchPostContent(int postId)
+        public static Fetch<string> FetchPostContent(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostContent(postId).DataFetch(fetcher);
         }
 
-        public static FetchMonad<int> FetchPostViews(int postId)
+        public static Fetch<int> FetchPostViews(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostViews(postId).DataFetch(fetcher);
         }
 
-        public static FetchMonad<Tuple<PostInfo, string>> GetPostDetails(int postId)
+        public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
         {
             var x = from info in FetchPostInfo(postId)
                     from content in FetchPostContent(postId)
@@ -126,31 +126,6 @@ namespace HaxlSharp.Test
                 select postInfo;
 
             await getAllPostsInfo.Rewrite().RunFetch();
-
-
-        }
-
-        [TestMethod]
-        public void QueryTest()
-        {
-            var global = 6;
-            var g2 = 3;
-            var x = from free1 in new Identity<int>(3)
-                    from free3 in new Identity<int>(free1)
-                    from free2 in new Identity<int>(free3)
-                    select free1 + free2 * free3;
-
-            var result = x.Run(new Query<int>());
-            Assert.AreEqual(12, result);
-
-            Debug.WriteLine("==");
-
-            var y = from free1 in new Identity<int>(global)
-                    from free2 in new Identity<int>(free1 + g2)
-                    select free1 + free2;
-
-            var result2 = y.Run(new Query<int>());
-            Assert.AreEqual(15, result2);
         }
 
     }

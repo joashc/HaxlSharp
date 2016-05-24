@@ -8,31 +8,35 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
+    /// <summary>
+    /// Fetches result
+    /// </summary>
     public interface Fetcher<C, X>
     {
         X Done(Func<C> result);
-        X Blocked(Fetch<C> fetch, IEnumerable<Task> blockedRequests);
+        X Blocked(Result<C> result, IEnumerable<Task> blockedRequests);
     }
 
+    /// <summary>
+    /// Fetcher that prints a separator between concurrent requests.
+    /// </summary>
+    /// <typeparam name="C"></typeparam>
     public class RunFetch<C> : Fetcher<C, Task<C>>
     {
-        public async Task<C> Blocked(Fetch<C> fetch, IEnumerable<Task> blockedRequests)
+        public async Task<C> Blocked(Result<C> fetch, IEnumerable<Task> blockedRequests)
         {
             Debug.WriteLine("==== Batch ====");
-            blockedRequests.All(r =>
+            foreach (var blocked in blockedRequests)
             {
-                r.Start();
-                return true;
-            });
+                blocked.Start();
+            }
             await Task.WhenAll(blockedRequests);
-            var fetchDone = fetch.Result;
-            return await fetchDone.Run(this);
+            return await fetch.Run(this);
         }
 
         public Task<C> Done(Func<C> result)
         {
             return Task.Factory.StartNew(result);
         }
-
     }
 }

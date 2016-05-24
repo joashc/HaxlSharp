@@ -62,10 +62,10 @@ namespace HaxlSharp
 
     public static class RequestExt
     {
-        public static FetchMonad<A> DataFetch<A>(this Request<A> request, Fetcher fetcher)
+        public static Fetch<A> DataFetch<A>(this Request<A> request, Fetcher fetcher)
         {
             var br = new BlockedRequest<A>(request, fetcher.AwaitResult(request));
-            var cont = Fetch(Done(() => br.fetchTask.Result));
+            var cont = Done(() => br.fetchTask.Result);
             var awaiter = new Task(() => { br.fetchTask.Start(); br.fetchTask.Wait(); });
             return new Blocked<A>(cont, new List<Task> { awaiter });
         }
