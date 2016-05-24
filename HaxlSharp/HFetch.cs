@@ -112,34 +112,15 @@ namespace HaxlSharp
         public static HF<C> SelectMany<A, B, C>(this HF<A> self,
             Expression<Func<A, HF<B>>> bind, Expression<Func<A, B, C>> project)
         {
-            var visitor = new ExpressionArguments();
-            visitor.Visit(bind);
-
-            var freeVariables = visitor.parameters.SelectMany(MemberNames).ToList();
-            var boundVariables = visitor.arguments.Select(MemberName);
-            var isApplicative = boundVariables.All(bound => !freeVariables.Contains(bound)) && freeVariables.Distinct().Count() == freeVariables.Count();
-
             var compiledBind = bind.Compile();
             var compiledProject = project.Compile();
-            if (isApplicative) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
+
+            if (DetectApplicative.IsApplicative(bind)) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
+
             return new Bind<A, C>(self, a => new Bind<B, C>(compiledBind(a),
                 b => new Identity<C>(compiledProject(a, b))));
         }
 
 
-        private static IEnumerable<string> MemberNames(ParameterExpression parameter)
-        {
-            if (parameter.Name.StartsWith("<>"))
-            {
-                var members = parameter.Type.GetMembers();
-                return members.Where(m => m.MemberType == System.Reflection.MemberTypes.Property).Select(m => m.Name);
-            }
-            return new List<string> { parameter.Name };
-        }
-
-        private static string MemberName(MemberExpression memberAccess)
-        {
-            return memberAccess.Member.Name;
-        }
     }
 }

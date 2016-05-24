@@ -24,7 +24,7 @@ namespace HaxlSharp
                 return true;
             });
             await Task.WhenAll(blockedRequests);
-            var fetchDone = await fetch.Result;
+            var fetchDone = fetch.Result();
             return await fetchDone.Run(this);
         }
 

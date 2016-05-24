@@ -9,8 +9,8 @@ namespace HaxlSharp
 {
     public class Fetch<A>
     {
-        public Task<Result<A>> Result { get; }
-        public Fetch(Task<Result<A>> result)
+        public Result<A> Result { get; }
+        public Fetch(Result<A> result)
         {
             Result = result;
         }
@@ -55,54 +55,40 @@ namespace HaxlSharp
     {
         public static Fetch<B> Select<A, B>(this Fetch<A> fetch, Func<A, B> f)
         {
-            var task = Task.Run(async () =>
+            var resultA = fetch.Result();
+            if (resultA is Done<A>)
             {
-                var resultA = await fetch.Result;
-                if (resultA is Done<A>)
-                {
-                    var doneA = resultA as Done<A>;
-                    return Done(f(doneA.result));
-                }
-                if (resultA is Blocked<A>)
-                {
-                    var blockedA = resultA as Blocked<A>;
-                    var taskB = Task.Run(async () =>
-                    {
-                        var blockedResult = await blockedA.fetch.Result;
-                        var a = await blockedResult.RunFetch();
-                        return Done(f(a));
-                    });
-                    return Blocked(Fetch(taskB), blockedA.blockedRequests);
-                }
-                throw new ArgumentException();
-            });
-            return new Fetch<B>(task);
+                var doneA = resultA as Done<A>;
+                return Fetch(Done(f(doneA.result)));
+            }
+            if (resultA is Blocked<A>)
+            {
+                var blockedA = resultA as Blocked<A>;
+                return Fetch(Blocked(blockedA.fetch.Select(f), blockedA.blockedRequests));
+            }
+            throw new ArgumentException();
         }
 
         public static Fetch<B> SelectMany<A, B>(this Fetch<A> fetch, Func<A, Fetch<B>> bind)
         {
-            var task = Task.Run(async () =>
+            var resultA = fetch.Result();
+            if (resultA is Done<A>)
             {
-                var resultA = await fetch.Result;
-                if (resultA is Done<A>)
-                {
-                    var doneA = resultA as Done<A>;
-                    return bind(doneA.result);
-                }
-                if (resultA is Blocked<A>)
-                {
-                    var blockedA = resultA as Blocked<A>;
-                    var newFetch = JoinFetch(blockedA.fetch.Select(bind));
-                    return Fetch(Blocked(newFetch, blockedA.blockedRequests));
-                }
-                throw new ArgumentException();
-            });
-            return task.Result;
+                var doneA = resultA as Done<A>;
+                return bind(doneA.result);
+            }
+            if (resultA is Blocked<A>)
+            {
+                var blockedA = resultA as Blocked<A>;
+                var newFetch = JoinFetch(blockedA.fetch.Select(bind));
+                return Fetch(Blocked(newFetch, blockedA.blockedRequests));
+            }
+            throw new ArgumentException();
         }
 
         public static Fetch<A> JoinFetch<A>(Fetch<Fetch<A>> nested)
         {
-            var result = nested.Result.Result.RunFetch().Result;
+            var result = nested.Result().RunFetch().Result;
             return result;
         }
 

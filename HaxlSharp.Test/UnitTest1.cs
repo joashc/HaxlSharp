@@ -130,10 +130,10 @@ namespace HaxlSharp.Test
 
 
             var fetcher = new RunFetch<IEnumerable<PostInfo>>();
-            var results = await (await getAllPostsInfo.Result).RunFetch();
+            var results = await getAllPostsInfo.Result().RunFetch();
 
             var detail = Blog.GetPostDetails(3);
-            var something = await detail.Result;
+            var something = detail.Result();
             var some2 = await something.RunFetch();
         }
 
@@ -154,12 +154,12 @@ namespace HaxlSharp.Test
             var global = 6;
             var g2 = 3;
             var x = from free1 in new Identity<int>(3)
-                    from free3 in new Identity<int>(g2)
-                    from free2 in new Identity<int>(global)
+                    from free3 in new Identity<int>(free1)
+                    from free2 in new Identity<int>(free3)
                     select free1 + free2 * free3;
 
             var result = x.Run(new Query<int>());
-            Assert.AreEqual(21, result);
+            Assert.AreEqual(12, result);
 
             Debug.WriteLine("==");
 

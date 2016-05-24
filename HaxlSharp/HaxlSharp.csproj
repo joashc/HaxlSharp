@@ -40,7 +40,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ExpressionParser.cs" />
+    <Compile Include="ApplicativeExpression\DetectApplicative.cs" />
+    <Compile Include="ApplicativeExpression\ExpressionVariables.cs" />
     <Compile Include="Fetcher.cs" />
     <Compile Include="Haxl.cs" />
     <Compile Include="Fetch.cs" />
