@@ -82,5 +82,14 @@ namespace HaxlSharp.Test
 
             Assert.AreEqual(1, batchCount);
         }
+
+        [TestMethod]
+        public async Task TransformList()
+        {
+            var batchCount = await Blog.RecentPostContent().BatchCount();
+
+            Assert.AreEqual(3, batchCount);
+
+        }
     }
 }

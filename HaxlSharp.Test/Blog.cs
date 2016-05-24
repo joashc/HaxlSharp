@@ -99,6 +99,24 @@ namespace HaxlSharp.Test
                     select new Tuple<PostInfo, string>(info, content);
             return x;
         }
+
+        public static Fetch<IEnumerable<PostInfo>> GetAllPostInfo()
+        {
+            return from postIds in FetchPosts()
+                   from postInfo in postIds.Select(FetchPostInfo).Sequence()
+                   select postInfo;
+        }
+
+        public static Fetch<IEnumerable<string>> RecentPostContent()
+        {
+            return from posts in GetAllPostInfo()
+                   from recentContent in
+                        posts.OrderByDescending(p => p.PostDate)
+                             .Take(4)
+                             .Select(pi => FetchPostContent(pi.PostId))
+                             .Sequence()
+                   select recentContent;
+        }
     }
 
     public class MockFetcher : Fetcher
