@@ -152,13 +152,23 @@ namespace HaxlSharp.Test
         public void QueryTest()
         {
             var global = 6;
+            var g2 = 3;
             var x = from free1 in new Identity<int>(3)
-                    from free2 in new Identity<int>(free1 + 3)
-                    from free3 in new Identity<int>(free2)
-                    from free4 in new Identity<int>(global)
-                    select free3 + free4;
+                    from free3 in new Identity<int>(g2)
+                    from free2 in new Identity<int>(global)
+                    select free1 + free2 * free3;
 
-            x.Run(new Query<int>());
+            var result = x.Run(new Query<int>());
+            Assert.AreEqual(21, result);
+
+            Debug.WriteLine("==");
+
+            var y = from free1 in new Identity<int>(global)
+                    from free2 in new Identity<int>(free1+ g2)
+                    select free1 + free2;
+
+            var result2 = y.Run(new Query<int>());
+            Assert.AreEqual(15, result2);
         }
 
     }

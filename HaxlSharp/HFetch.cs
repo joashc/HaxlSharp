@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -7,10 +8,11 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
-    public interface Hfi<A, X>
+    public interface Hfi<C, X>
     {
-        X Bind<B>(HF<B> hf, Expression<Func<B, HF<A>>> bind);
-        X Identity(A value);
+        X Bind<B>(HF<B> hf, Expression<Func<B, HF<C>>> bind);
+        X Applicative<A, B>(HF<A> hf, Func<HF<B>> applicative, Func<A, B, C> project);
+        X Identity(C value);
     }
 
     public interface HF<A>
@@ -18,22 +20,37 @@ namespace HaxlSharp
         X Run<X>(Hfi<A, X> interpreter);
     }
 
-    public class Bind<B, A> : HF<A>
+    public class Bind<B, C> : HF<C>
     {
         public readonly HF<B> hf;
-        public readonly Expression<Func<B, HF<A>>> bind;
-        public readonly IEnumerable<string> boundVars;
-        public Bind(HF<B> hf, Expression<Func<B, HF<A>>> bind, IEnumerable<string> boundVars)
+        public readonly Expression<Func<B, HF<C>>> bind;
+        public Bind(HF<B> hf, Expression<Func<B, HF<C>>> bind)
         {
             this.hf = hf;
             this.bind = bind;
-            this.boundVars = boundVars;
         }
 
-
-        public X Run<X>(Hfi<A, X> interpreter)
+        public X Run<X>(Hfi<C, X> interpreter)
         {
             return interpreter.Bind(hf, bind);
+        }
+    }
+
+    public class Applicative<A, B, C> : HF<C>
+    {
+        public readonly HF<A> hfA;
+        public readonly Func<HF<B>> hfB;
+        public readonly Func<A, B, C> project;
+        public Applicative(HF<A> hfA, Func<HF<B>> hfB, Func<A, B, C> project)
+        {
+            this.hfA = hfA;
+            this.hfB = hfB;
+            this.project = project;
+        }
+
+        public X Run<X>(Hfi<C, X> interpreter)
+        {
+            return interpreter.Applicative(hfA, hfB, project);
         }
     }
 
@@ -51,18 +68,27 @@ namespace HaxlSharp
         }
     }
 
-    public class Query<A> : Hfi<A, A>
+    public class Query<C> : Hfi<C, C>
     {
-        public A Bind<B>(HF<B> hf, Expression<Func<B, HF<A>>> bind)
+        public C Applicative<A, B>(HF<A> hf, Func<HF<B>> applicative, Func<A, B, C> project)
+        {
+            Debug.WriteLine("BATCH");
+            var resultA = Task.Factory.StartNew(() => hf.Run(new Query<A>()));
+            var resultB = Task.Factory.StartNew(() => applicative().Run(new Query<B>()));
+            Task.WaitAll(resultA, resultB);
+            return project(resultA.Result, resultB.Result);
+        }
+
+        public C Bind<B>(HF<B> hf, Expression<Func<B, HF<C>>> bind)
         {
             var resultB = hf.Run(new Query<B>());
             var compiledBind = bind.Compile();
-            var hfa = compiledBind(resultB);
-            var resultA = hfa.Run(this);
-            return resultA;
+            var hfC = compiledBind(resultB);
+            var resultC = hfC.Run(this);
+            return resultC;
         }
 
-        public A Identity(A value)
+        public C Identity(C value)
         {
             return value;
         }
@@ -74,13 +100,13 @@ namespace HaxlSharp
         {
             var compiled = f.Compile();
             var bb = new List<string>();
-            return new Bind<A, B>(self, a => new Identity<B>(compiled(a)), bb);
+            return new Bind<A, B>(self, a => new Identity<B>(compiled(a)));
         }
 
         public static HF<B> SelectMany<A, B>(this HF<A> self, Expression<Func<A, HF<B>>> bind)
         {
             var bb = new List<string>();
-            return new Bind<A, B>(self, bind, bb);
+            return new Bind<A, B>(self, bind);
         }
 
         public static HF<C> SelectMany<A, B, C>(this HF<A> self,
@@ -91,13 +117,13 @@ namespace HaxlSharp
 
             var freeVariables = visitor.parameters.SelectMany(MemberNames).ToList();
             var boundVariables = visitor.arguments.Select(MemberName);
-            var compiledBind = bind.Compile();
-            var compiledProject = project.Compile();
             var isApplicative = boundVariables.All(bound => !freeVariables.Contains(bound)) && freeVariables.Distinct().Count() == freeVariables.Count();
 
-            var bb = new List<string>();
+            var compiledBind = bind.Compile();
+            var compiledProject = project.Compile();
+            if (isApplicative) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
             return new Bind<A, C>(self, a => new Bind<B, C>(compiledBind(a),
-                b => new Identity<C>(compiledProject(a, b)), bb), bb);
+                b => new Identity<C>(compiledProject(a, b))));
         }
 
 

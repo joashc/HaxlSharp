@@ -23,6 +23,11 @@ namespace HaxlSharp
             return base.VisitMember(node);
         }
 
+        protected override Expression VisitLambda<T>(Expression<T> node)
+        {
+            return base.VisitLambda<T>(node);
+        }
+
         protected override Expression VisitParameter(ParameterExpression node)
         {
             parameters.Add(node);
