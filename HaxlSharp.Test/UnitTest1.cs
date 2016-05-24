@@ -68,33 +68,32 @@ namespace HaxlSharp.Test
 
     public static class Blog
     {
-        public static Fetch<IEnumerable<int>> FetchPosts()
+        public static FetchMonad<IEnumerable<int>> FetchPosts()
         {
             var fetcher = new MockFetcher();
             return new FetchPosts().DataFetch(fetcher);
         }
 
-        public static Fetch<PostInfo> FetchPostInfo(int postId)
+        public static FetchMonad<PostInfo> FetchPostInfo(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostInfo(postId).DataFetch(fetcher);
         }
 
-        public static Fetch<string> FetchPostContent(int postId)
+        public static FetchMonad<string> FetchPostContent(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostContent(postId).DataFetch(fetcher);
         }
 
-        public static Fetch<int> FetchPostViews(int postId)
+        public static FetchMonad<int> FetchPostViews(int postId)
         {
             var fetcher = new MockFetcher();
             return new FetchPostViews(postId).DataFetch(fetcher);
         }
 
-        public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
+        public static FetchMonad<Tuple<PostInfo, string>> GetPostDetails(int postId)
         {
-            return Applicative(FetchPostInfo(postId), FetchPostContent(postId), (info, content) => new Tuple<PostInfo, string>(info, content));
             var x = from info in FetchPostInfo(postId)
                     from content in FetchPostContent(postId)
                     select new Tuple<PostInfo, string>(info, content);
@@ -115,26 +114,21 @@ namespace HaxlSharp.Test
         }
     }
 
-
-
     [TestClass]
     public class HaxlSharpTest
     {
         [TestMethod]
         public async Task QuerySyntax()
         {
-            var getAllPostsInfo =
-                from postIds in Blog.FetchPosts()
-                from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
-                select postInfo;
+            //var getAllPostsInfo =
+            //    from postIds in Blog.FetchPosts()
+            //    from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
+            //    select postInfo;
 
+            var rewriter = new Rewriter<Tuple<PostInfo, string>>();
+            var rewritten = Blog.GetPostDetails(0).Run(rewriter);
+            var results = await rewritten.Result.RunFetch();
 
-            var fetcher = new RunFetch<IEnumerable<PostInfo>>();
-            var results = await getAllPostsInfo.Result.RunFetch();
-
-            var detail = Blog.GetPostDetails(3);
-            var something = detail.Result;
-            var some2 = await something.RunFetch();
         }
 
         [TestMethod]

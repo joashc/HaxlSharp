@@ -1,12 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
+    public interface FetchMonad<A>
+    {
+        X Run<X>(FetchRewriter<A, X> rewriter);
+    }
+
+    public interface FetchRewriter<C, X>
+    {
+        X Bind<B>(FetchMonad<B> fetch, Expression<Func<B, FetchMonad<C>>> bind);
+        X Applicative<A, B>(FetchMonad<A> fetch1, Func<FetchMonad<B>> fetch2, Func<A, B, C> project);
+        X Result(Result<C> result);
+    }
+
     public class Fetch<A>
     {
         public Result<A> Result { get; }
@@ -16,7 +29,7 @@ namespace HaxlSharp
         }
     }
 
-    public interface Result<A>
+    public interface Result<A> : FetchMonad<A>
     {
         X Run<X>(Fetcher<A, X> fetcher);
     }
@@ -29,9 +42,48 @@ namespace HaxlSharp
             this.result = result;
         }
 
+        public X Run<X>(FetchRewriter<A, X> rewriter)
+        {
+            return rewriter.Result(this);
+        }
+
         public X Run<X>(Fetcher<A, X> fetcher)
         {
             return fetcher.Done(result);
+        }
+    }
+
+    public class Bind<B, C> : FetchMonad<C>
+    {
+        public readonly FetchMonad<B> fetch;
+        public readonly Expression<Func<B, FetchMonad<C>>> bind;
+        public Bind(FetchMonad<B> fetch, Expression<Func<B, FetchMonad<C>>> bind)
+        {
+            this.fetch = fetch;
+            this.bind = bind;
+        }
+
+        public X Run<X>(FetchRewriter<C, X> rewriter)
+        {
+            return rewriter.Bind(fetch, bind);
+        }
+    }
+
+    public class Applicative<A, B, C> : FetchMonad<C>
+    {
+        public readonly FetchMonad<A> fetch1;
+        public readonly Func<FetchMonad<B>> fetch2;
+        public readonly Func<A, B, C> project;
+        public Applicative(FetchMonad<A> fetch1, Func<FetchMonad<B>> fetch2, Func<A, B, C> project)
+        {
+            this.fetch1 = fetch1;
+            this.fetch2 = fetch2;
+            this.project = project;
+        }
+
+        public X Run<X>(FetchRewriter<C, X> rewriter)
+        {
+            return rewriter.Applicative(fetch1, fetch2, project);
         }
     }
 
@@ -48,6 +100,59 @@ namespace HaxlSharp
         public X Run<X>(Fetcher<A, X> fetcher)
         {
             return fetcher.Blocked(fetch, blockedRequests);
+        }
+
+        public X Run<X>(FetchRewriter<A, X> rewriter)
+        {
+            return rewriter.Result(this);
+        }
+    }
+
+    public static class FetchMonadExt
+    {
+        public static FetchMonad<B> Select<A, B>(this FetchMonad<A> self, Expression<Func<A, B>> f)
+        {
+            var compiled = f.Compile();
+            return new Bind<A, B>(self, a => Done(() => compiled(a)));
+        }
+
+        public static FetchMonad<B> SelectMany<A, B>(this FetchMonad<A> self, Expression<Func<A, FetchMonad<B>>> bind)
+        {
+            return new Bind<A, B>(self, bind);
+        }
+
+        public static FetchMonad<C> SelectMany<A, B, C>(this FetchMonad<A> self,
+            Expression<Func<A, FetchMonad<B>>> bind, Expression<Func<A, B, C>> project)
+        {
+            var compiledBind = bind.Compile();
+            var compiledProject = project.Compile();
+
+            if (DetectApplicative.IsApplicative(bind)) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
+
+            return new Bind<A, C>(self, a => new Bind<B, C>(compiledBind(a),
+                b => Done(() => compiledProject(a, b))));
+        }
+    }
+
+    public class Rewriter<C> : FetchRewriter<C, Fetch<C>>
+    {
+        public Fetch<C> Applicative<A, B>(FetchMonad<A> fetch1, Func<FetchMonad<B>> fetch2, Func<A, B, C> project)
+        {
+            var fetchA = fetch1.Run(new Rewriter<A>());
+            var fetchB = fetch2().Run(new Rewriter<B>());
+            return Haxl.Applicative(fetchA, fetchB, project);
+        }
+
+        public Fetch<C> Bind<B>(FetchMonad<B> fetch, Expression<Func<B, FetchMonad<C>>> bind)
+        {
+            var fetchB = fetch.Run(new Rewriter<B>());
+            var fetchC = fetchB.Result.SelectMany(bind);
+            return fetchC.Run(this);
+        }
+
+        public Fetch<C> Result(Result<C> result)
+        {
+            return Fetch(result);
         }
     }
 
@@ -105,7 +210,7 @@ namespace HaxlSharp
         /// <summary>
         /// Default to using recursion depth limit of 100
         /// </summary>
-        public static Fetch<IEnumerable<A>> Sequence<A>(this IEnumerable<Fetch<A>> dists)
+        public static FetchMonad<IEnumerable<A>> Sequence<A>(this IEnumerable<FetchMonad<A>> dists)
         {
             return SequenceWithDepth(dists, 100);
         }
@@ -119,7 +224,7 @@ namespace HaxlSharp
         /// $$s\log_{s}{n}$$
         /// where s is the specified recursion depth limit
         /// </summary>
-        public static Fetch<IEnumerable<A>> SequenceWithDepth<A>(this IEnumerable<Fetch<A>> dists, int recursionDepth)
+        public static FetchMonad<IEnumerable<A>> SequenceWithDepth<A>(this IEnumerable<FetchMonad<A>> dists, int recursionDepth)
         {
             var sections = dists.Count() / recursionDepth;
             if (sections <= 1) return RunSequence(dists);
@@ -131,10 +236,10 @@ namespace HaxlSharp
         /// `sequence` can be implemented as
         /// sequence xs = foldr (liftM2 (:)) (return []) xs
         /// </summary>
-        private static Fetch<IEnumerable<A>> RunSequence<A>(IEnumerable<Fetch<A>> dists)
+        private static FetchMonad<IEnumerable<A>> RunSequence<A>(IEnumerable<FetchMonad<A>> dists)
         {
             return dists.Aggregate(
-                Fetch(Done<IEnumerable<A>>(() => new List<A>())),
+                Done<IEnumerable<A>>(() => new List<A>()) as FetchMonad<IEnumerable<A>>,
                 (listFetch, aFetch) => from a in aFetch
                                        from list in listFetch
                                        select Append(list, a)
@@ -145,7 +250,7 @@ namespace HaxlSharp
         /// Divide a list of distributions into groups of given size, then runs sequence on each group
         /// </summary>
         /// <returns>The list of sequenced distribution groups</returns>
-        private static IEnumerable<Fetch<IEnumerable<A>>> SequencePartial<A>(IEnumerable<Fetch<A>> dists, int groupSize)
+        private static IEnumerable<FetchMonad<IEnumerable<A>>> SequencePartial<A>(IEnumerable<FetchMonad<A>> dists, int groupSize)
         {
             var numGroups = dists.Count() / groupSize;
             return Enumerable.Range(0, numGroups)

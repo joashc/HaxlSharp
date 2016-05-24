@@ -20,11 +20,11 @@ namespace HaxlSharp
         X Run<X>(Hfi<A, X> interpreter);
     }
 
-    public class Bind<B, C> : HF<C>
+    public class BindH<B, C> : HF<C>
     {
         public readonly HF<B> hf;
         public readonly Expression<Func<B, HF<C>>> bind;
-        public Bind(HF<B> hf, Expression<Func<B, HF<C>>> bind)
+        public BindH(HF<B> hf, Expression<Func<B, HF<C>>> bind)
         {
             this.hf = hf;
             this.bind = bind;
@@ -36,12 +36,12 @@ namespace HaxlSharp
         }
     }
 
-    public class Applicative<A, B, C> : HF<C>
+    public class ApplicativeH<A, B, C> : HF<C>
     {
         public readonly HF<A> hfA;
         public readonly Func<HF<B>> hfB;
         public readonly Func<A, B, C> project;
-        public Applicative(HF<A> hfA, Func<HF<B>> hfB, Func<A, B, C> project)
+        public ApplicativeH(HF<A> hfA, Func<HF<B>> hfB, Func<A, B, C> project)
         {
             this.hfA = hfA;
             this.hfB = hfB;
@@ -99,14 +99,12 @@ namespace HaxlSharp
         public static HF<B> Select<A, B>(this HF<A> self, Expression<Func<A, B>> f)
         {
             var compiled = f.Compile();
-            var bb = new List<string>();
-            return new Bind<A, B>(self, a => new Identity<B>(compiled(a)));
+            return new BindH<A, B>(self, a => new Identity<B>(compiled(a)));
         }
 
         public static HF<B> SelectMany<A, B>(this HF<A> self, Expression<Func<A, HF<B>>> bind)
         {
-            var bb = new List<string>();
-            return new Bind<A, B>(self, bind);
+            return new BindH<A, B>(self, bind);
         }
 
         public static HF<C> SelectMany<A, B, C>(this HF<A> self,
@@ -115,9 +113,9 @@ namespace HaxlSharp
             var compiledBind = bind.Compile();
             var compiledProject = project.Compile();
 
-            if (DetectApplicative.IsApplicative(bind)) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
+            if (DetectApplicative.IsApplicative(bind)) return new ApplicativeH<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
 
-            return new Bind<A, C>(self, a => new Bind<B, C>(compiledBind(a),
+            return new BindH<A, C>(self, a => new BindH<B, C>(compiledBind(a),
                 b => new Identity<C>(compiledProject(a, b))));
         }
 

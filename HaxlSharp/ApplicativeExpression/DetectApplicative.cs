@@ -24,6 +24,18 @@ namespace HaxlSharp
                 && freeVariables.Distinct().Count() == freeVariables.Count();
         }
 
+        public static bool IsApplicative<A, B>(Expression<Func<A, FetchMonad<B>>> bind)
+        {
+            var visitor = new ExpressionVariables();
+            visitor.Visit(bind);
+
+            var freeVariables = visitor.Parameters.SelectMany(MemberNames).ToList();
+            var boundVariables = visitor.Arguments.Select(m => m.Member.Name);
+
+            return boundVariables.All(bound => !freeVariables.Contains(bound))
+                && freeVariables.Distinct().Count() == freeVariables.Count();
+        }
+
         private static IEnumerable<string> MemberNames(ParameterExpression parameter)
         {
             // Transparent identifiers start with this prefix
