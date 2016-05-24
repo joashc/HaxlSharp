@@ -69,6 +69,5 @@ namespace HaxlSharp
             var awaiter = new Task(() => { br.fetchTask.Start(); br.fetchTask.Wait(); });
             return Fetch(new Blocked<A>(cont, new List<Task> { awaiter }));
         }
-
     }
 }

@@ -102,30 +102,6 @@ namespace HaxlSharp
             return fetch.Run(new RunFetch<A>());
         }
 
-        public static IEnumerable<Fetch<B>> Select<A, B>(this IEnumerable<Fetch<A>> fetches, Func<A, B> f)
-        {
-            foreach (var fetch in fetches)
-            {
-                yield return fetch.Select(f);
-            }
-        }
-
-        public static IEnumerable<Fetch<B>> SelectMany<A, B>(this IEnumerable<Fetch<A>> fetches, Func<A, Fetch<B>> bind)
-        {
-            foreach (var fetch in fetches)
-            {
-                yield return fetch.SelectMany(bind);
-            }
-        }
-
-        public static IEnumerable<Fetch<C>> SelectMany<A, B, C>(this IEnumerable<Fetch<A>> fetches, Func<A, Fetch<B>> bind, Func<A, B, C> project)
-        {
-            foreach (var fetch in fetches)
-            {
-                yield return fetch.SelectMany(bind, project);
-            }
-        }
-
         /// <summary>
         /// Default to using recursion depth limit of 100
         /// </summary>
