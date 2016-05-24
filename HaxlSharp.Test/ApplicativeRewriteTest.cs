@@ -7,43 +7,14 @@ using System.Diagnostics;
 
 namespace HaxlSharp.Test
 {
-    public class TestFetcher<A> : Fetcher<A, Task<A>>
+    public static class ApplicativeRewriteTestExt
     {
-        public int BatchCounter;
-        public TestFetcher(int batchCounter)
+        public async static Task<int> BatchCount<A>(this Fetch<A> fetch)
         {
-            BatchCounter = batchCounter;
-        }
-
-        public async Task<A> Blocked(Result<A> fetch, IEnumerable<Task> blockedRequests)
-        {
-            BatchCounter += 1;
-            foreach (var blocked in blockedRequests)
-            {
-                blocked.Start();
-            }
-            await Task.WhenAll(blockedRequests);
-            return await fetch.Run(this);
-        }
-
-        public Task<A> Done(Func<A> result)
-        {
-            return Task.Factory.StartNew(result);
-        }
-    }
-
-    public static class TestFetchExt
-    {
-        public static async Task<int> CountBatches<A>(this Fetch<A> fetch)
-        {
-            var fetcher = new TestFetcher<A>(0);
-            await fetch.Rewrite().Run(fetcher);
-            return fetcher.BatchCounter;
-        }
-
-        public static Task<A> RunFetch<A>(this Result<A> result)
-        {
-            return result.Run(new TestFetcher<A>(0));
+            var batchCount = 0;
+            BatchEvents.BatchOccurredEvent += (_, __) => batchCount += 1;
+            await fetch.Rewrite().RunFetch();
+            return batchCount;
         }
     }
 
@@ -54,10 +25,9 @@ namespace HaxlSharp.Test
         public async Task SingleFetch_ShouldHaveOneBatch()
         {
             var postIds = Blog.FetchPosts();
+            var batchCount = await postIds.BatchCount();
 
-            var batches = await postIds.CountBatches();
-
-            Assert.AreEqual(1, batches);
+            Assert.AreEqual(1, batchCount);
         }
 
         [TestMethod]
@@ -67,9 +37,9 @@ namespace HaxlSharp.Test
                                 from firstInfo in Blog.FetchPostInfo(postIds.First())
                                 select firstInfo;
 
-            var batches = await firstPostInfo.CountBatches();
+            var batchCount = await firstPostInfo.BatchCount();
 
-            Assert.AreEqual(2, batches);
+            Assert.AreEqual(2, batchCount);
         }
 
         [TestMethod]
@@ -80,9 +50,37 @@ namespace HaxlSharp.Test
                 from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
                 select postInfo;
 
-            var batches = await getAllPostsInfo.CountBatches();
+            var batchCount = await getAllPostsInfo.BatchCount();
 
-            Assert.AreEqual(2, batches);
+            Assert.AreEqual(2, batchCount);
+        }
+
+        [TestMethod]
+        public async Task SharedDependency()
+        {
+            var fetch =
+                from postIds in Blog.FetchPosts()
+                from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
+                from firstPostInfo in Blog.FetchPostInfo(postIds.First())
+                select firstPostInfo;
+
+            var batchCount = await fetch.BatchCount();
+
+            Assert.AreEqual(2, batchCount);
+        }
+
+        [TestMethod]
+        public async Task LetNotation_Applicative()
+        {
+            var id = 0;
+            var fetch = from postInfo in Blog.FetchPostInfo(id)
+                        let id2 = 5
+                        from postInfo2 in Blog.FetchPostInfo(id2)
+                        select postInfo2;
+
+            var batchCount = await fetch.BatchCount();
+
+            Assert.AreEqual(1, batchCount);
         }
     }
 }

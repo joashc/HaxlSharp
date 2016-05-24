@@ -54,7 +54,7 @@
   <ItemGroup>
     <Compile Include="ApplicativeRewriteTest.cs" />
     <Compile Include="MockData.cs" />
-    <Compile Include="UnitTest1.cs" />
+    <Compile Include="Blog.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

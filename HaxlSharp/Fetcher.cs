@@ -17,6 +17,17 @@ namespace HaxlSharp
         X Blocked(Result<C> result, IEnumerable<Task> blockedRequests);
     }
 
+    public static class BatchEvents
+    {
+        public delegate void BatchOccurredHandler(int batchSize, Type resultType);
+        public static event BatchOccurredHandler BatchOccurredEvent;
+        public static void BatchOccurred(int batchSize, Type resultType)
+        {
+            if (BatchOccurredEvent == null) return;
+            BatchOccurredEvent(batchSize, resultType);
+        }
+    }
+
     /// <summary>
     /// Fetcher that prints a separator between concurrent requests.
     /// </summary>
@@ -26,6 +37,7 @@ namespace HaxlSharp
         public async Task<C> Blocked(Result<C> fetch, IEnumerable<Task> blockedRequests)
         {
             Debug.WriteLine("==== Batch ====");
+            BatchEvents.BatchOccurred(blockedRequests.Count(), typeof(C));
             foreach (var blocked in blockedRequests)
             {
                 blocked.Start();

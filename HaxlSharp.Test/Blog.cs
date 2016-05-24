@@ -113,20 +113,4 @@ namespace HaxlSharp.Test
             });
         }
     }
-
-    [TestClass]
-    public class HaxlSharpTest
-    {
-        [TestMethod]
-        public async Task QuerySyntax()
-        {
-            var getAllPostsInfo =
-                from postIds in Blog.FetchPosts()
-                from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
-                select postInfo;
-
-            await getAllPostsInfo.Rewrite().RunFetch();
-        }
-
-    }
 }
