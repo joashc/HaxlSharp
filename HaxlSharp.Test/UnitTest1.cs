@@ -120,26 +120,14 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task QuerySyntax()
         {
-            //var getAllPostsInfo =
-            //    from postIds in Blog.FetchPosts()
-            //    from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
-            //    select postInfo;
+            var getAllPostsInfo =
+                from postIds in Blog.FetchPosts()
+                from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
+                select postInfo;
 
-            var rewriter = new Rewriter<Tuple<PostInfo, string>>();
-            var rewritten = Blog.GetPostDetails(0).Run(rewriter);
-            var results = await rewritten.Result.RunFetch();
+            await getAllPostsInfo.Rewrite().RunFetch();
 
-        }
 
-        [TestMethod]
-        public async Task Sequential()
-        {
-            var x = 0;
-            await Task.WhenAll(Task.Delay(1000), Task.Delay(1000));
-            x += 1;
-            await Task.Delay(1000);
-            x += 1;
-            Assert.AreEqual(2, x);
         }
 
         [TestMethod]
@@ -158,7 +146,7 @@ namespace HaxlSharp.Test
             Debug.WriteLine("==");
 
             var y = from free1 in new Identity<int>(global)
-                    from free2 in new Identity<int>(free1+ g2)
+                    from free2 in new Identity<int>(free1 + g2)
                     select free1 + free2;
 
             var result2 = y.Run(new Query<int>());

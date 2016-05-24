@@ -113,7 +113,7 @@ namespace HaxlSharp
         public static FetchMonad<B> Select<A, B>(this FetchMonad<A> self, Expression<Func<A, B>> f)
         {
             var compiled = f.Compile();
-            return new Bind<A, B>(self, a => Done(() => compiled(a)));
+            return Done(() => compiled(self.Rewrite().RunFetch().Result));
         }
 
         public static FetchMonad<B> SelectMany<A, B>(this FetchMonad<A> self, Expression<Func<A, FetchMonad<B>>> bind)
@@ -138,16 +138,18 @@ namespace HaxlSharp
     {
         public Fetch<C> Applicative<A, B>(FetchMonad<A> fetch1, Func<FetchMonad<B>> fetch2, Func<A, B, C> project)
         {
-            var fetchA = fetch1.Run(new Rewriter<A>());
-            var fetchB = fetch2().Run(new Rewriter<B>());
+            var fetchA = fetch1.Rewrite();
+            var fetchB = fetch2().Rewrite();
             return Haxl.Applicative(fetchA, fetchB, project);
         }
 
         public Fetch<C> Bind<B>(FetchMonad<B> fetch, Expression<Func<B, FetchMonad<C>>> bind)
         {
-            var fetchB = fetch.Run(new Rewriter<B>());
-            var fetchC = fetchB.Result.SelectMany(bind);
-            return fetchC.Run(this);
+            var compiledBind = bind.Compile();
+
+            var fetchB = fetch.Rewrite();
+            var fetchC = Done(() => compiledBind(fetchB.RunFetch().Result).Rewrite().RunFetch().Result);
+            return Fetch(fetchC);
         }
 
         public Fetch<C> Result(Result<C> result)
@@ -185,26 +187,25 @@ namespace HaxlSharp
             if (resultA is Blocked<A>)
             {
                 var blockedA = resultA as Blocked<A>;
-                var newFetch = JoinFetch(blockedA.fetch.Select(bind));
+                var newFetch = blockedA.fetch.SelectMany(bind);
                 return Fetch(Blocked(newFetch, blockedA.blockedRequests));
             }
             throw new ArgumentException();
         }
 
-        public static Fetch<A> JoinFetch<A>(Fetch<Fetch<A>> nested)
-        {
-            var result = nested.Result.RunFetch().Result;
-            return result;
-        }
-
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> fetch, Func<A, Fetch<B>> bind, Func<A, B, C> project)
         {
-            return JoinFetch(fetch.Select(t => bind(t).Select(u => project(t, u))));
+            return fetch.SelectMany(t => bind(t).Select(u => project(t, u)));
         }
 
-        public static Task<A> RunFetch<A>(this Result<A> fetch)
+        public static Task<A> RunFetch<A>(this Fetch<A> fetch)
         {
-            return fetch.Run(new RunFetch<A>());
+            return fetch.Result.Run(new RunFetch<A>());
+        }
+
+        public static Fetch<A> Rewrite<A>(this FetchMonad<A> fetch)
+        {
+            return fetch.Run(new Rewriter<A>());
         }
 
         /// <summary>
@@ -212,7 +213,7 @@ namespace HaxlSharp
         /// </summary>
         public static FetchMonad<IEnumerable<A>> Sequence<A>(this IEnumerable<FetchMonad<A>> dists)
         {
-            return SequenceWithDepth(dists, 100);
+            return SequenceWithDepth(dists, 10);
         }
 
         /// <summary>
