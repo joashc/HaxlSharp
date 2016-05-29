@@ -53,6 +53,7 @@
   </Choose>
   <ItemGroup>
     <Compile Include="ApplicativeRewriteTest.cs" />
+    <Compile Include="ExpressionTests.cs" />
     <Compile Include="MockData.cs" />
     <Compile Include="Blog.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

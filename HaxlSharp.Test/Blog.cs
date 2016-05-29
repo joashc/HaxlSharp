@@ -38,6 +38,14 @@ namespace HaxlSharp.Test
         }
     }
 
+    public class GetTwoLatestsPosts : Request<Tuple<int, int>>
+    {
+        public Tuple<int, int> RunRequest()
+        {
+            return new Tuple<int, int>(0, 1);
+        }
+    }
+
     public class FetchPostContent : Request<string>
     {
         private readonly int _postId;
@@ -68,7 +76,12 @@ namespace HaxlSharp.Test
 
     public static class Blog
     {
-        public static Fetch<IEnumerable<int>> FetchPosts()
+        public static Fetch<Tuple<int, int>> FetchTwoLatestPosts()
+        {
+            var fetcher = new MockFetcher();
+            return new GetTwoLatestsPosts().DataFetch(fetcher);
+        }
+        public static Fetch<IEnumerable<int>> FetchAllPostIds()
         {
             var fetcher = new MockFetcher();
             return new FetchPosts().DataFetch(fetcher);
@@ -84,6 +97,12 @@ namespace HaxlSharp.Test
         {
             var fetcher = new MockFetcher();
             return new FetchPostContent(postId).DataFetch(fetcher);
+        }
+
+        public static Fetch<int> GetFirstPostId()
+        {
+            return from posts in GetAllPostInfo()
+                   select posts.OrderByDescending(p => p.PostDate).First().PostId;
         }
 
         public static Fetch<int> FetchPostViews(int postId)
@@ -102,7 +121,7 @@ namespace HaxlSharp.Test
 
         public static Fetch<IEnumerable<PostInfo>> GetAllPostInfo()
         {
-            return from postIds in FetchPosts()
+            return from postIds in FetchAllPostIds()
                    from postInfo in postIds.Select(FetchPostInfo).Sequence()
                    select postInfo;
         }
@@ -117,6 +136,7 @@ namespace HaxlSharp.Test
                              .Sequence()
                    select recentContent;
         }
+
     }
 
     public class MockFetcher : Fetcher

@@ -14,6 +14,7 @@ namespace HaxlSharp
     /// <typeparam name="A"></typeparam>
     public interface Fetch<A>
     {
+        Dictionary<string, object> PreviouslyBound { get; }
         X Run<X>(FetchRewriter<A, X> rewriter);
     }
 
@@ -24,15 +25,20 @@ namespace HaxlSharp
     {
         public readonly Fetch<B> fetch;
         public readonly Expression<Func<B, Fetch<C>>> bind;
-        public Bind(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind)
+        private readonly Dictionary<string, object> previouslyBound;
+
+        public Dictionary<string, object> PreviouslyBound { get { return previouslyBound; } }
+
+        public Bind(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind, Dictionary<string, object> previouslyBound)
         {
             this.fetch = fetch;
             this.bind = bind;
+            this.previouslyBound = previouslyBound;
         }
 
         public X Run<X>(FetchRewriter<C, X> rewriter)
         {
-            return rewriter.Bind(fetch, bind);
+            return rewriter.Bind(fetch, bind, previouslyBound);
         }
     }
 
@@ -44,11 +50,15 @@ namespace HaxlSharp
         public readonly Fetch<A> fetch1;
         public readonly Func<Fetch<B>> fetch2;
         public readonly Func<A, B, C> project;
-        public Applicative(Fetch<A> fetch1, Func<Fetch<B>> fetch2, Func<A, B, C> project)
+        private readonly Dictionary<string, object> previouslyBound;
+        public Dictionary<string, object> PreviouslyBound { get { return previouslyBound; } }
+
+        public Applicative(Fetch<A> fetch1, Func<Fetch<B>> fetch2, Func<A, B, C> project, Dictionary<string, object> previouslyBound)
         {
             this.fetch1 = fetch1;
             this.fetch2 = fetch2;
             this.project = project;
+            this.previouslyBound = previouslyBound;
         }
 
         public X Run<X>(FetchRewriter<C, X> rewriter)
@@ -65,12 +75,8 @@ namespace HaxlSharp
         public static Fetch<B> Select<A, B>(this Fetch<A> self, Expression<Func<A, B>> f)
         {
             var compiled = f.Compile();
-            return Done(() => compiled(self.Rewrite().RunFetch().Result));
-        }
-
-        public static Fetch<B> SelectMany<A, B>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind)
-        {
-            return new Bind<A, B>(self, bind);
+            return from x in self
+                   select compiled(x);
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self,
@@ -79,10 +85,26 @@ namespace HaxlSharp
             var compiledBind = bind.Compile();
             var compiledProject = project.Compile();
 
-            if (DetectApplicative.IsApplicative(bind)) return new Applicative<A, B, C>(self, () => compiledBind(default(A)), compiledProject);
+            var applicativeInfo = DetectApplicative.CheckApplicative(bind, self.PreviouslyBound);
+            var dic = self.PreviouslyBound;
+            Func<A, B, Fetch<C>> newBind = (a, b) => { dic[applicativeInfo.LastBound] = a;
+                return Done(() => compiledProject(a, b));
+            };
 
-            return new Bind<A, C>(self, a => new Bind<B, C>(compiledBind(a),
-                b => Done(() => compiledProject(a, b))));
+            Func<A, Fetch<C>> bindA = a =>
+            {
+                var val = a.GetType().GetProperty(applicativeInfo.LastBound);
+                dic[applicativeInfo.LastBound] = val;
+                return new Bind<B, C>(compiledBind(a), b => Done(() => compiledProject(a, b)), dic);
+            };
+
+            if (applicativeInfo.IsApplicative) return new Applicative<A, B, C>(self, () => {
+                object val = default(A);
+                dic.TryGetValue(applicativeInfo.LastBound, out val);
+                return compiledBind((A) val); }, compiledProject, dic);
+
+
+            return new Bind<A, C>(self, a => bindA(a), dic);
         }
 
         public static Result<A> Rewrite<A>(this Fetch<A> fetch)
@@ -125,7 +147,7 @@ namespace HaxlSharp
                 Done<IEnumerable<A>>(() => new List<A>()) as Fetch<IEnumerable<A>>,
                 (listFetch, aFetch) => from a in aFetch
                                        from list in listFetch
-                                       select Append(list, a)
+                                       select list.Append(a)
             );
         }
 

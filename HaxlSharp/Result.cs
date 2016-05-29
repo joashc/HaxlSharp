@@ -15,6 +15,7 @@ namespace HaxlSharp
     public class Done<A> : Result<A>
     {
         public readonly Func<A> result;
+        public Dictionary<string, object> PreviouslyBound { get { return new Dictionary<string, object>(); } }
         public Done(Func<A> result)
         {
             this.result = result;
@@ -35,6 +36,7 @@ namespace HaxlSharp
     {
         public readonly Result<A> result;
         public readonly IEnumerable<Task> blockedRequests;
+        public Dictionary<string, object> PreviouslyBound { get { return new Dictionary<string, object>(); } }
         public Blocked(Result<A> fetch, IEnumerable<Task> blockedRequests)
         {
             this.result = fetch;

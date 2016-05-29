@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Diagnostics;
+using static HaxlSharp.Test.Blog;
 
 namespace HaxlSharp.Test
 {
@@ -24,7 +25,7 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task SingleFetch_ShouldHaveOneBatch()
         {
-            var postIds = Blog.FetchPosts();
+            var postIds = FetchAllPostIds();
             var batchCount = await postIds.BatchCount();
 
             Assert.AreEqual(1, batchCount);
@@ -33,8 +34,8 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task SequentialFetch_ShouldHaveTwoBatches()
         {
-            var firstPostInfo = from postIds in Blog.FetchPosts()
-                                from firstInfo in Blog.FetchPostInfo(postIds.First())
+            var firstPostInfo = from postIds in FetchAllPostIds()
+                                from firstInfo in FetchPostInfo(postIds.First())
                                 select firstInfo;
 
             var batchCount = await firstPostInfo.BatchCount();
@@ -46,7 +47,7 @@ namespace HaxlSharp.Test
         public async Task Sequence_ShouldBeApplicative()
         {
             var getAllPostsInfo =
-                from postIds in Blog.FetchPosts()
+                from postIds in FetchAllPostIds()
                 from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
                 select postInfo;
 
@@ -55,13 +56,14 @@ namespace HaxlSharp.Test
             Assert.AreEqual(2, batchCount);
         }
 
+
         [TestMethod]
         public async Task SharedDependency()
         {
             var fetch =
-                from postIds in Blog.FetchPosts()
+                from postIds in FetchAllPostIds()
                 from postInfo in postIds.Select(Blog.FetchPostInfo).Sequence()
-                from firstPostInfo in Blog.FetchPostInfo(postIds.First())
+                from firstPostInfo in FetchPostInfo(postIds.First())
                 select firstPostInfo;
 
             var batchCount = await fetch.BatchCount();
@@ -73,9 +75,9 @@ namespace HaxlSharp.Test
         public async Task LetNotation_Applicative()
         {
             var id = 0;
-            var fetch = from postInfo in Blog.FetchPostInfo(id)
+            var fetch = from postInfo in FetchPostInfo(id)
                         let id2 = 5
-                        from postInfo2 in Blog.FetchPostInfo(id2)
+                        from postInfo2 in FetchPostInfo(id2)
                         select postInfo2;
 
             var batchCount = await fetch.BatchCount();
@@ -86,10 +88,24 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task TransformList()
         {
-            var batchCount = await Blog.RecentPostContent().BatchCount();
+            var batchCount = await RecentPostContent().BatchCount();
 
             Assert.AreEqual(3, batchCount);
 
+        }
+
+        [TestMethod]
+        public async Task TwoLatestExample()
+        {
+            var fetch = from latest in FetchTwoLatestPosts()
+                        from first in FetchPostInfo(latest.Item1)
+                        from second in FetchPostInfo(latest.Item2)
+                        from third in FetchPostInfo(2)
+                        select first;
+
+            var batchCount = await fetch.BatchCount();
+
+            Assert.AreEqual(2, batchCount);
         }
     }
 }

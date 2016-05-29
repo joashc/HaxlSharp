@@ -26,6 +26,11 @@ namespace HaxlSharp
             return base.VisitMember(node);
         }
 
+        protected override Expression VisitBinary(BinaryExpression node)
+        {
+            return base.VisitBinary(node);
+        }
+
         protected override Expression VisitParameter(ParameterExpression node)
         {
             Parameters.Add(node);

@@ -13,7 +13,7 @@ namespace HaxlSharp
     /// </summary>
     public interface FetchRewriter<C, X>
     {
-        X Bind<B>(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind);
+        X Bind<B>(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind, Dictionary<string, object> previouslyBound);
         X Applicative<A, B>(Fetch<A> fetch1, Func<Fetch<B>> fetch2, Func<A, B, C> project);
         X Result(Result<C> result);
     }
@@ -55,7 +55,7 @@ namespace HaxlSharp
                 var fetchB = blockedB.result;
                 var newFetch = Applicative(fetchA, fetchB, project);
 
-                return Blocked(newFetch, blockedA.blockedRequests.Concat(blockedB.blockedRequests));
+                return Blocked(newFetch, blockedB.blockedRequests.Concat(blockedA.blockedRequests));
             }
             throw new ArgumentException();
         }
@@ -73,11 +73,11 @@ namespace HaxlSharp
         /// <summary>
         /// Sequential evaluation of monad. 
         /// </summary>
-        public Result<C> Bind<B>(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind)
+        public Result<C> Bind<B>(Fetch<B> fetch, Expression<Func<B, Fetch<C>>> bind, Dictionary<string, object> previouslyBound)
         {
             var compiledBind = bind.Compile();
-
             var fetchB = fetch.Rewrite();
+            var applicativeInfo = DetectApplicative.CheckApplicative(bind, previouslyBound);
             return Done(() => compiledBind(fetchB.RunFetch().Result).Rewrite().RunFetch().Result);
         }
 
