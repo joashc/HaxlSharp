@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -23,10 +24,10 @@ namespace HaxlSharp.Test
         public static Func<int, Identity<int>> d = i => new Identity<int>(i);
         public static Nested nested = new Nested();
 
-        public static int CountAt(Tuple<bool, IEnumerable<ApplicativeSegment>> tuple, int i)
+        public static int CountAt(Tuple<bool, IEnumerable<ApplicativeGroup>> tuple, int i)
         {
             return tuple.Item2.ElementAt(i).Expressions.Count();
-        } 
+        }
 
         [TestMethod]
         public void ExpressionTest()
@@ -36,7 +37,7 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              from w in d(y)
                              select x + y + z + w;
-            var split = SplitApplicative.Split(expression);
+            var split = Splitter.Split(expression);
             Assert.AreEqual(false, split.Item1);
             Assert.AreEqual(2, split.Item2.Count());
             Assert.AreEqual(1, CountAt(split, 0));
@@ -50,7 +51,7 @@ namespace HaxlSharp.Test
                              from y in new Identity<int>(nested.x)
                              from z in c2(x, y)
                              select x + y + z;
-            var split = SplitApplicative.Split(expression);
+            var split = Splitter.Split(expression);
             Assert.AreEqual(false, split.Item1);
             Assert.AreEqual(2, split.Item2.Count());
             Assert.AreEqual(1, CountAt(split, 0));
@@ -64,7 +65,7 @@ namespace HaxlSharp.Test
                              from y in c(x)
                              from z in c(x)
                              select x + y + z;
-            var split = SplitApplicative.Split(expression);
+            var split = Splitter.Split(expression);
             Assert.AreEqual(true, split.Item1);
             Assert.AreEqual(1, split.Item2.Count());
             Assert.AreEqual(2, CountAt(split, 0));
@@ -77,7 +78,7 @@ namespace HaxlSharp.Test
                              from y in c(x)
                              from z in c(nested.x)
                              select x + y + z;
-            var split = SplitApplicative.Split(expression);
+            var split = Splitter.Split(expression);
             Assert.AreEqual(true, split.Item1);
             Assert.AreEqual(1, split.Item2.Count());
         }
@@ -89,7 +90,7 @@ namespace HaxlSharp.Test
                              from z in c(nested.x)
                              from y in c(x + 3)
                              select x + y + z;
-            var split = SplitApplicative.Split(expression);
+            var split = Splitter.Split(expression);
             Assert.AreEqual(false, split.Item1);
             Assert.AreEqual(2, split.Item2.Count());
             Assert.AreEqual(1, CountAt(split, 0));
@@ -99,14 +100,18 @@ namespace HaxlSharp.Test
         [TestMethod]
         public void LetTest()
         {
-            var expression = from x in a
-                             let q = x + 3
-                             from z in c(q)
-                             from y in c(x + 3)
-                             select x + y + z;
-            var split = SplitApplicative.Split(expression);
-            Assert.AreEqual(true, split.Item1);
-            Assert.AreEqual(1, split.Item2.Count());
+            //var memberType = DetectApplicative.GetTransMemberType(node);
+            //var dictionary = Expression.Constant(boundVariables);
+            //var result = Expression.Property(dictionary, "Item", Expression.Constant(node.Member.Name));
+            //var key = Expression.Parameter(typeof(string), "key");
+            //var expression = from x in a
+            //                 let q = x + 3
+            //                 from z in c(x)
+            //                 from y in c(x + 3)
+            //                 select x + y + z;
+            //var split = SplitApplicative.Split(expression);
+            //Assert.AreEqual(true, split.Item1);
+            //Assert.AreEqual(1, split.Item2.Count());
         }
     }
 }

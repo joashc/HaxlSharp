@@ -77,7 +77,7 @@ namespace HaxlSharp
             return new List<FreeVariable> { new FreeVariable(parameter.Name, false) };
         }
 
-        private static bool fromTransparent(MemberExpression expression)
+        public static bool FromTransparent(MemberExpression expression)
         {
             if (expression.Expression == null) return false;
             if (expression.Expression.NodeType == ExpressionType.Parameter)
@@ -88,12 +88,24 @@ namespace HaxlSharp
             {
                 return false;
             }
-            return fromTransparent(expression.Expression as MemberExpression);
+            return FromTransparent(expression.Expression as MemberExpression);
+        }
+
+        public static Type GetTransMemberType(MemberExpression expression)
+        {
+            if (!FromTransparent(expression)) throw new ArgumentException("Must be called on transparent member accessor");
+            dynamic member = expression.Member;
+            return member.PropertyType;
+        }
+
+        public static bool IsTransparentMember(MemberExpression expression)
+        {
+            return expression.Member.Name.StartsWith("<>h__Trans");
         }
 
         private static FreeVariable MemberAccess(MemberExpression argument)
         {
-            return new FreeVariable(argument.Member.Name, fromTransparent(argument));
+            return new FreeVariable(argument.Member.Name, FromTransparent(argument));
         }
 
 

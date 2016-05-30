@@ -43,6 +43,7 @@
     <Compile Include="ApplicativeExpression\ApplicativeInfo.cs" />
     <Compile Include="ApplicativeExpression\DetectApplicative.cs" />
     <Compile Include="ApplicativeExpression\ExpressionVariables.cs" />
+    <Compile Include="ApplicativeExpression\RebindTransparent.cs" />
     <Compile Include="ApplicativeExpression\SplitApplicative.cs" />
     <Compile Include="Fetcher.cs" />
     <Compile Include="Haxl.cs" />

@@ -6,15 +6,22 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
-    public static class SplitApplicative
+    public class SplitApplicatives<A>
     {
-        public static Tuple<bool, IEnumerable<ApplicativeSegment>> Split<A>(Expr<A> expression)
-        {
-            var segments = new List<ApplicativeSegment>();
+        public readonly Expr<A> Expression;
+        public readonly IEnumerable<ApplicativeGroup> Segments;
+    }
 
-            var currentSegment = new ApplicativeSegment();
+    public static class Splitter
+    {
+        public static Tuple<bool, IEnumerable<ApplicativeGroup>> Split<A>(Expr<A> expression)
+        {
+            var segments = new List<ApplicativeGroup>();
+
+            var currentSegment = new ApplicativeGroup();
             var first = expression.Binds.First();
             var firstApplicativeInfo = DetectApplicative.CheckApplicative(first.Bind);
+
             currentSegment.Expressions.Add(first);
             currentSegment.BoundVariables.AddRange(firstApplicativeInfo.Free.Select(f => f.Name));
             bool firstSplit = false;
@@ -33,12 +40,12 @@ namespace HaxlSharp
                 if (split)
                 {
                     segments.Add(currentSegment);
-                    currentSegment = new ApplicativeSegment();
+                    currentSegment = new ApplicativeGroup();
                 }
                 currentSegment.Expressions.Add(bind);
             }
             segments.Add(currentSegment);
-            return new Tuple<bool, IEnumerable<ApplicativeSegment>>(firstSplit, segments);
+            return new Tuple<bool, IEnumerable<ApplicativeGroup>>(firstSplit, segments);
         }
     }
 }

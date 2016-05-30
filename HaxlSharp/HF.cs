@@ -31,16 +31,16 @@ namespace HaxlSharp
         public BindExpression(LambdaExpression bind, LambdaExpression project)
         {
             Bind = bind;
-            Project = project; 
+            Project = project;
         }
 
         public readonly LambdaExpression Bind;
         public readonly LambdaExpression Project;
     }
 
-    public class ApplicativeSegment
+    public class ApplicativeGroup
     {
-        public ApplicativeSegment(List<BindExpression> expressions = null, List<string> boundVariables = null)
+        public ApplicativeGroup(List<BindExpression> expressions = null, List<string> boundVariables = null)
         {
             Expressions = expressions ?? new List<BindExpression>();
             BoundVariables = boundVariables ?? new List<string>();
