@@ -11,11 +11,13 @@ namespace HaxlSharp
     {
         public readonly List<FreeVariable> Free;
         public readonly List<string> Bound;
+        public readonly List<string> ParameterNames;
 
-        public Variables(List<FreeVariable> free, List<string> bound)
+        public Variables(List<FreeVariable> free, List<string> bound, List<string> parameterNames)
         {
             Free = free;
             Bound = bound;
+            ParameterNames = parameterNames;
         }
     }
 
@@ -37,7 +39,7 @@ namespace HaxlSharp
         /// </summary>
         public static ApplicativeInfo CheckApplicative<A, B>(Expression<Func<A, Fetch<B>>> bind, Dictionary<string, object> previouslyBound)
         {
-            var visitor = new ExpressionVariables();
+            var visitor = new ExpressionVarVisitor();
             visitor.Visit(bind);
 
             var freeVariables = visitor.Parameters.SelectMany(MemberNames);
@@ -54,13 +56,25 @@ namespace HaxlSharp
             return new ApplicativeInfo(isApplicative, freeWithoutPrevious.Concat(previouslyBound.Keys), freeWithoutPrevious.First());
         }
 
-        public static Variables CheckApplicative(LambdaExpression bind)
+        public static Variables GetExpressionVariables(LambdaExpression bind)
         {
-            var visitor = new ExpressionVariables();
-            visitor.Visit(bind);
+            var visitor = new ExpressionVarVisitor();
+            visitor.Visit(bind.Body);
             var frees = visitor.Parameters.SelectMany(MemberNames).ToList();
             var bound = visitor.Arguments.Select(MemberAccess).Where(m => !m.Name.StartsWith("<>h__Trans") && m.FromTransparent).Select(f => f.Name).ToList();
-            return new Variables(frees, bound);
+            var paramVisitor = new ExpressionVarVisitor();
+            foreach (var param in bind.Parameters)
+            {
+                paramVisitor.Visit(param);
+            }
+            return new Variables(frees, bound, paramVisitor.Parameters.SelectMany(MemberNames).Select(f => f.Name).ToList());
+        }
+
+        public static string GetFirstParameterName(LambdaExpression expr)
+        {
+            var firstParam = expr.Parameters.FirstOrDefault();
+            if (firstParam == null) throw new ArgumentException("Lambda expression has no parameters");
+            return firstParam.Name;
         }
 
         private static IEnumerable<FreeVariable> MemberNames(ParameterExpression parameter)

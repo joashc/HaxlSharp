@@ -91,7 +91,6 @@ namespace HaxlSharp.Test
             var batchCount = await RecentPostContent().BatchCount();
 
             Assert.AreEqual(3, batchCount);
-
         }
 
         [TestMethod]

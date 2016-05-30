@@ -10,11 +10,11 @@ namespace HaxlSharp
     /// <summary>
     /// Recursively collects the arguments and parameters of a given expression.
     /// </summary>
-    public class ExpressionVariables : ExpressionVisitor
+    public class ExpressionVarVisitor : ExpressionVisitor
     {
         public readonly List<MemberExpression> Arguments;
         public readonly List<ParameterExpression> Parameters;
-        public ExpressionVariables()
+        public ExpressionVarVisitor()
         {
             Arguments = new List<MemberExpression>();
             Parameters = new List<ParameterExpression>();

@@ -9,26 +9,34 @@ namespace HaxlSharp
 {
     public interface Expr<A>
     {
-        IEnumerable<BindExpression> Binds { get; }
+        IEnumerable<BindProjectPair> CollectedExpressions { get; }
+        LambdaExpression Initial { get; }
     }
+
+
 
     public class BindExpr<A, B, C> : Expr<C>
     {
-        public BindExpr(IEnumerable<BindExpression> binds, Expr<A> expr)
+        public BindExpr(IEnumerable<BindProjectPair> binds, Expr<A> expr)
         {
             _binds = binds;
             Expr = expr;
         }
 
-        private readonly IEnumerable<BindExpression> _binds;
-        public IEnumerable<BindExpression> Binds { get { return _binds; } }
+        private readonly IEnumerable<BindProjectPair> _binds;
+        public IEnumerable<BindProjectPair> CollectedExpressions { get { return _binds; } }
+
+        public LambdaExpression Initial
+        {
+            get { return Expr.Initial; }
+        }
 
         public readonly Expr<A> Expr;
     }
 
-    public class BindExpression
+    public class BindProjectPair
     {
-        public BindExpression(LambdaExpression bind, LambdaExpression project)
+        public BindProjectPair(LambdaExpression bind, LambdaExpression project)
         {
             Bind = bind;
             Project = project;
@@ -40,13 +48,13 @@ namespace HaxlSharp
 
     public class ApplicativeGroup
     {
-        public ApplicativeGroup(List<BindExpression> expressions = null, List<string> boundVariables = null)
+        public ApplicativeGroup(List<LambdaExpression> expressions = null, List<string> boundVariables = null)
         {
-            Expressions = expressions ?? new List<BindExpression>();
+            Expressions = expressions ?? new List<LambdaExpression>();
             BoundVariables = boundVariables ?? new List<string>();
         }
 
-        public readonly List<BindExpression> Expressions;
+        public readonly List<LambdaExpression> Expressions;
         public readonly List<string> BoundVariables;
     }
 
@@ -58,8 +66,10 @@ namespace HaxlSharp
             this.val = val;
         }
 
-        private static readonly IEnumerable<BindExpression> emptyList = new List<BindExpression>();
-        public IEnumerable<BindExpression> Binds { get { return emptyList; } }
+        private static readonly IEnumerable<BindProjectPair> emptyList = new List<BindProjectPair>();
+        public IEnumerable<BindProjectPair> CollectedExpressions { get { return emptyList; } }
+
+        public LambdaExpression Initial { get { return Expression.Lambda(Expression.Constant(this)); } }
     }
 
     public static class ExprExt
@@ -72,10 +82,61 @@ namespace HaxlSharp
 
         public static Expr<C> SelectMany<A, B, C>(this Expr<A> self, Expression<Func<A, Expr<B>>> bind, Expression<Func<A, B, C>> project)
         {
-            var bindExpression = new BindExpression(bind, project);
-            var newBinds = self.Binds.Append(bindExpression);
+            var bindExpression = new BindProjectPair(bind, project);
+            var newBinds = self.CollectedExpressions.Append(bindExpression);
             return new BindExpr<A, B, C>(newBinds, self);
         }
-    }
+        /// <summary>
+        /// Default to using recursion depth limit of 100
+        /// </summary>
+        public static Expr<IEnumerable<A>> Sequence<A>(this IEnumerable<Expr<A>> dists)
+        {
+            return SequenceWithDepth(dists, 10);
+        }
+
+        /// <summary>
+        /// This implementation sort of does trampolining to avoid stack overflows,
+        /// but for performance reasons it recursively divides the list
+        /// into groups up to a recursion depth, instead of trampolining every iteration.
+        ///
+        /// This should limit the recursion depth to around 
+        /// $$s\log_{s}{n}$$
+        /// where s is the specified recursion depth limit
+        /// </summary>
+        public static Expr<IEnumerable<A>> SequenceWithDepth<A>(this IEnumerable<Expr<A>> dists, int recursionDepth)
+        {
+            var sections = dists.Count() / recursionDepth;
+            if (sections <= 1) return RunSequence(dists);
+            return from nested in SequenceWithDepth(SequencePartial(dists, recursionDepth), recursionDepth)
+                   select nested.SelectMany(a => a);
+        }
+
+        /// <summary>
+        /// `sequence` can be implemented as
+        /// sequence xs = foldr (liftM2 (:)) (return []) xs
+        /// </summary>
+        private static Expr<IEnumerable<A>> RunSequence<A>(IEnumerable<Expr<A>> dists)
+        {
+            return dists.Aggregate(
+                new Identity<IEnumerable<A>>(new List<A>()) as Expr<IEnumerable<A>>,
+                (listFetch, aFetch) => from a in aFetch
+                                       from list in listFetch
+                                       select list.Append(a)
+            );
+        }
+
+        /// <summary>
+        /// Divide a list of distributions into groups of given size, then runs sequence on each group
+        /// </summary>
+        /// <returns>The list of sequenced distribution groups</returns>
+        private static IEnumerable<Expr<IEnumerable<A>>> SequencePartial<A>(IEnumerable<Expr<A>> dists, int groupSize)
+        {
+            var numGroups = dists.Count() / groupSize;
+            return Enumerable.Range(0, numGroups)
+                             .Select(groupNum => RunSequence(dists.Skip(groupNum * groupSize).Take(groupSize)));
+        }
+
+
+   } 
 
 }
