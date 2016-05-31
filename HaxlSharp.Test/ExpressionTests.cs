@@ -30,7 +30,7 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public void ExpressionTest()
+        public async Task ExpressionTest()
         {
             var nested = from xa in new Identity<int>(66)
                              // split
@@ -46,12 +46,12 @@ namespace HaxlSharp.Test
                              from w in d(y)
                              select x + y + z + w;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(true, split.FirstSplit);
             Assert.AreEqual(4, split.Segments.Count());
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(3, CountAt(split, 1));
             Assert.AreEqual(2, CountAt(split, 2));
             Assert.AreEqual(1, CountAt(split, 3));
+            var result = await RunSplits.Run(split);
         }
 
         [TestMethod]
@@ -63,7 +63,6 @@ namespace HaxlSharp.Test
                              from z in c2(x, y)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
@@ -78,7 +77,6 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(true, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
@@ -94,7 +92,6 @@ namespace HaxlSharp.Test
                              from z in c(nested.x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
@@ -109,7 +106,6 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
@@ -124,7 +120,6 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
@@ -205,6 +200,20 @@ namespace HaxlSharp.Test
 
             var split = Splitter.Split(expression);
             ;
+        }
+
+        [TestMethod]
+        public async Task SequenceRewriteConcurrent()
+        {
+            var list = Enumerable.Range(0, 10);
+            Func<int, Identity<int>> mult10 = x => new Identity<int>(x * 10);
+            var expression = from x in new Identity<IEnumerable<int>>(list)
+                             from multiplied in x.Select(mult10).Sequence()
+                             from added in x.Select(num => new Identity<int>(num)).Sequence()
+                             select added.Concat(multiplied);
+
+            var split = Splitter.Split(expression);
+            var result = await RunSplits.Run(split);
         }
     }
 }

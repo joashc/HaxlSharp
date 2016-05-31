@@ -91,7 +91,9 @@ namespace HaxlSharp
         /// </summary>
         public static Expr<IEnumerable<A>> Sequence<A>(this IEnumerable<Expr<A>> dists)
         {
-            return SequenceWithDepth(dists, 10);
+            var results = dists.Select(d => RunSplits.Run(Splitter.Split(d))).ToArray();
+            Task.WaitAll(results);
+            return new Identity<IEnumerable<A>>(results.Select(task => task.Result));
         }
 
         /// <summary>

@@ -48,7 +48,7 @@ namespace HaxlSharp
                 var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant(memberName));
                 return Expression.Convert(result, memberType);
             }
-            return boundVariablesParameter;
+            return node;
         }
 
     }

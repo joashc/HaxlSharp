@@ -11,17 +11,23 @@ namespace HaxlSharp
     {
         public readonly Expr<A> Expression;
         public readonly IEnumerable<ApplicativeGroup> Segments;
-        public readonly bool FirstSplit;
+        public readonly bool IsIdentity;
         public readonly Queue<string> NameQueue;
         public readonly LambdaExpression FinalProject;
 
-        public SplitApplicatives(Expr<A> expression, IEnumerable<ApplicativeGroup> segments, bool firstSplit, Queue<string> nameQueue, LambdaExpression finalProject)
+        public SplitApplicatives(Expr<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
         {
             Expression = expression;
             Segments = segments;
             NameQueue = nameQueue;
-            FirstSplit = firstSplit;
+            IsIdentity = false;
             FinalProject = finalProject;
+        }
+
+        public SplitApplicatives(Expr<A> expression)
+        {
+            IsIdentity = true;
+            Expression = expression;
         }
     }
 
@@ -43,6 +49,7 @@ namespace HaxlSharp
     {
         public static SplitApplicatives<A> Split<A>(Expr<A> expression)
         {
+            if (IsIdentity(expression)) return new SplitApplicatives<A>(expression);
             var segments = new List<ApplicativeGroup>();
             var currentSegment = new ApplicativeGroup();
             var seenParameters = new HashSet<string>();
@@ -70,7 +77,12 @@ namespace HaxlSharp
             var finalProject = currentSegment.Expressions.Last();
             currentSegment.Expressions.RemoveAt(currentSegment.Expressions.Count - 1);
             segments.Add(currentSegment);
-            return new SplitApplicatives<A>(expression, segments, segments.First().Expressions.Count == 1, boundVarQueue, finalProject);
+            return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
+        }
+
+        public static bool IsIdentity<A>(Expr<A> expression)
+        {
+            return expression is Identity<A>;
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)

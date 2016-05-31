@@ -16,11 +16,21 @@ namespace HaxlSharp
 
         public static object FetchId(object id)
         {
-            return ((dynamic)id).val;
+            var type = id.GetType();
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Identity<>))
+            {
+                return ((dynamic)id).val;
+            }
+            return id;
         }
 
         public static async Task<A> Run<A>(SplitApplicatives<A> splits)
         {
+            if (splits.IsIdentity)
+            {
+                return await Task.Factory.StartNew(() => (splits.Expression as Identity<A>).val);
+            }
+
             var rebindTransparent = new RebindTransparent();
             var boundVariables = new Dictionary<string, object>();
             A final = default(A);
