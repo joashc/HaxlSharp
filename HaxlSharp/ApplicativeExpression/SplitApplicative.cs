@@ -11,15 +11,17 @@ namespace HaxlSharp
     {
         public readonly Expr<A> Expression;
         public readonly IEnumerable<ApplicativeGroup> Segments;
-        public bool FirstSplit;
-        public Queue<string> NameQueue;
+        public readonly bool FirstSplit;
+        public readonly Queue<string> NameQueue;
+        public readonly LambdaExpression FinalProject;
 
-        public SplitApplicatives(Expr<A> expression, IEnumerable<ApplicativeGroup> segments, bool firstSplit, Queue<string> nameQueue)
+        public SplitApplicatives(Expr<A> expression, IEnumerable<ApplicativeGroup> segments, bool firstSplit, Queue<string> nameQueue, LambdaExpression finalProject)
         {
             Expression = expression;
             Segments = segments;
             NameQueue = nameQueue;
             FirstSplit = firstSplit;
+            FinalProject = finalProject;
         }
     }
 
@@ -49,7 +51,9 @@ namespace HaxlSharp
             currentSegment.Expressions.Add(expression.Initial);
 
             var vars = expression.CollectedExpressions.Select(GetVariables);
-            var bound = vars.SelectMany(v => v.BindVariables.ParameterNames);
+            var boundParams = vars.SelectMany(v => v.BindVariables.ParameterNames);
+            var projectedParams = vars.Select(v => v.ProjectVariables.ParameterNames);
+            var boundVarQueue = BoundQueryVars(projectedParams);
 
             foreach (var expr in vars)
             {
@@ -61,10 +65,12 @@ namespace HaxlSharp
                     currentSegment = new ApplicativeGroup();
                 }
                 currentSegment.Expressions.Add(expr.Expressions.Bind);
-                if (expr.ProjectVariables.Free.Any(f => !bound.Contains(f.Name))) currentSegment.Expressions.Add(expr.Expressions.Project);
+                if (expr.ProjectVariables.Free.Any(f => !boundParams.Contains(f.Name))) currentSegment.Expressions.Add(expr.Expressions.Project);
             }
+            var finalProject = currentSegment.Expressions.Last();
+            currentSegment.Expressions.RemoveAt(currentSegment.Expressions.Count - 1);
             segments.Add(currentSegment);
-            return new SplitApplicatives<A>(expression, segments, segments.First().Expressions.Count == 1, new Queue<string>());
+            return new SplitApplicatives<A>(expression, segments, segments.First().Expressions.Count == 1, boundVarQueue, finalProject);
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)
@@ -91,25 +97,18 @@ namespace HaxlSharp
 
         private static Queue<string> BoundQueryVars(IEnumerable<IEnumerable<string>> nameGroups)
         {
-            var bound = new HashSet<string>();
+            var seen = new HashSet<string>();
             var nameQueue = new Queue<string>();
             foreach (var nameGroup in nameGroups)
             {
-                var newBinder = nameGroup.FirstOrDefault(name => !bound.Contains(name));
-                if (newBinder == null) continue;
-                bound.Add(newBinder);
-                nameQueue.Enqueue(newBinder);
+                var unseen = nameGroup.Where(name => !seen.Contains(name));
+                foreach (var param in unseen)
+                {
+                    seen.Add(param);
+                    nameQueue.Enqueue(param);
+                }
             }
             return nameQueue;
-        }
-
-        private static bool EnqueueBinder(List<FreeVariable> freeVars, HashSet<string> bound, Queue<string> nameQueue)
-        {
-            var newBinder = freeVars.FirstOrDefault(f => !bound.Contains(f.Name));
-            if (newBinder == null) return false;
-            bound.Add(newBinder.Name);
-            nameQueue.Enqueue(newBinder.Name);
-            return true;
         }
     }
 }

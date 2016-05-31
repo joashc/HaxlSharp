@@ -6,17 +6,6 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
-    public interface ApplicExpr<A>
-    {
-    }
-
-    public class ABind<A, B, C> : ApplicExpr<C>
-    {
-        public readonly Dictionary<string, object> boundVariables;
-        public readonly ApplicativeGroup Before;
-        public readonly ApplicativeGroup After;
-    }
-
 
     public static class RunSplits
     {
@@ -25,9 +14,33 @@ namespace HaxlSharp
             return id.val;
         }
 
-        public static A Run<A>(SplitApplicatives<A> splits)
+        public static object FetchId(object id)
         {
-            throw new ArgumentException();
+            return ((dynamic)id).val;
+        }
+
+        public static async Task<A> Run<A>(SplitApplicatives<A> splits)
+        {
+            var rebindTransparent = new RebindTransparent();
+            var boundVariables = new Dictionary<string, object>();
+            A final = default(A);
+            foreach (var segment in splits.Segments)
+            {
+                var segmentTasks = segment.Expressions.Select(exp =>
+                {
+                    var rewritten = rebindTransparent.Rewrite(exp);
+                    var bindTo = splits.NameQueue.Dequeue();
+                    return Task.Factory.StartNew(() =>
+                    {
+                        var result = rewritten.Compile().DynamicInvoke(boundVariables);
+                        boundVariables[bindTo] = FetchId(result);
+                    });
+                });
+                await Task.WhenAll(segmentTasks);
+            }
+            var finalProject = rebindTransparent.Rewrite(splits.FinalProject);
+            final = (A)finalProject.Compile().DynamicInvoke(boundVariables);
+            return final;
         }
     }
 }

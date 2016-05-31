@@ -51,7 +51,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(3, CountAt(split, 1));
             Assert.AreEqual(2, CountAt(split, 2));
-            Assert.AreEqual(2, CountAt(split, 3));
+            Assert.AreEqual(1, CountAt(split, 3));
         }
 
         [TestMethod]
@@ -66,7 +66,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
-            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 1));
         }
 
         [TestMethod]
@@ -81,7 +81,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(true, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(3, CountAt(split, 1));
+            Assert.AreEqual(2, CountAt(split, 1));
         }
 
         [TestMethod]
@@ -97,7 +97,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
-            Assert.AreEqual(3, CountAt(split, 1));
+            Assert.AreEqual(2, CountAt(split, 1));
         }
 
         [TestMethod]
@@ -112,7 +112,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
-            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 1));
         }
 
         [TestMethod]
@@ -127,7 +127,7 @@ namespace HaxlSharp.Test
             Assert.AreEqual(false, split.FirstSplit);
             Assert.AreEqual(2, split.Segments.Count());
             Assert.AreEqual(2, CountAt(split, 0));
-            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 1));
 
         }
 
@@ -158,6 +158,39 @@ namespace HaxlSharp.Test
                              from w in d(y)
                              select x + y + z + w;
             var split = Splitter.Split(expression);
+
+            var rebindTransparent = new RebindTransparent();
+            var test = split.Segments.SelectMany(seg => seg.Expressions.Select(rebindTransparent.Rewrite)).ToList();
+            var boundVariables = new Dictionary<string, object>();
+            var nameQueue = new Queue<string>();
+            nameQueue.Enqueue("x");
+            nameQueue.Enqueue("y");
+            nameQueue.Enqueue("z");
+            nameQueue.Enqueue("w");
+            foreach (var expr in test)
+            {
+                var result = expr.Compile().DynamicInvoke(boundVariables);
+                boundVariables[nameQueue.Dequeue()] = RunSplits.FetchId(result);
+            }
+            var finalProject = rebindTransparent.Rewrite(split.FinalProject);
+            var final = finalProject.Compile().DynamicInvoke(boundVariables);
+            Assert.AreEqual(10, final);
+        }
+
+        [TestMethod]
+        public async Task ConcurrentRewrite()
+        {
+            var expression = from x in a
+                             from y in b
+                             //split
+                             from z in c(x)
+                             from w in d(y)
+                             select x + y + z + w;
+            var split = Splitter.Split(expression);
+
+            var final = await RunSplits.Run(split);
+            Assert.AreEqual(10, final);
+
         }
 
         [TestMethod]
