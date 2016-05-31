@@ -28,7 +28,7 @@ namespace HaxlSharp
         {
             if (splits.IsIdentity)
             {
-                return await Task.Factory.StartNew(() => (splits.Expression as Identity<A>).val);
+                return await Task.FromResult((splits.Expression as Identity<A>).val);
             }
 
             var rebindTransparent = new RebindTransparent();

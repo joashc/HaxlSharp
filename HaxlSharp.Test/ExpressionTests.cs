@@ -129,18 +129,13 @@ namespace HaxlSharp.Test
         [TestMethod]
         public void LetTest()
         {
-            //var memberType = DetectApplicative.GetTransMemberType(node);
-            //var dictionary = Expression.Constant(boundVariables);
-            //var result = Expression.Property(dictionary, "Item", Expression.Constant(node.Member.Name));
-            //var key = Expression.Parameter(typeof(string), "key");
             //var expression = from x in a
             //                 let q = x + 3
             //                 from z in c(x)
             //                 from y in c(x + 3)
             //                 select x + y + z;
-            //var split = SplitApplicative.Split(expression);
-            //Assert.AreEqual(true, split.FirstSplit);
-            //Assert.AreEqual(1, split.Segments.Count());
+            //var split = Splitter.Split(expression);
+            //Assert.AreEqual(2, split.Segments.Count());
         }
 
         [TestMethod]
