@@ -72,7 +72,7 @@ namespace HaxlSharp.Test
         public void ExpressionTest3()
         {
             var expression = from x in a
-                             // split
+                                 // split
                              from y in c(x)
                              from z in c(x)
                              select x + y + z;
@@ -87,7 +87,7 @@ namespace HaxlSharp.Test
         {
             var expression = from f in a
                              from x in a
-                             // split
+                                 // split
                              from y in c(x)
                              from z in c(nested.x)
                              select x + y + z;
@@ -102,7 +102,7 @@ namespace HaxlSharp.Test
         {
             var expression = from x in a
                              from z in c(nested.x)
-                             // split
+                                 // split
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
@@ -116,7 +116,7 @@ namespace HaxlSharp.Test
         {
             var expression = from z in c(nested.x)
                              from x in a
-                             // split
+                                 // split
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
@@ -129,13 +129,13 @@ namespace HaxlSharp.Test
         [TestMethod]
         public void LetTest()
         {
-            //var expression = from x in a
-            //                 let q = x + 3
-            //                 from z in c(x)
-            //                 from y in c(x + 3)
-            //                 select x + y + z;
-            //var split = Splitter.Split(expression);
-            //Assert.AreEqual(2, split.Segments.Count());
+            var expression = from x in a
+                             let q = x + 3
+                             from z in c(x)
+                             from y in c(x + 3)
+                             select x + y + z;
+            var split = Splitter.Split(expression);
+            Assert.AreEqual(3, split.Segments.Count());
         }
 
         [TestMethod]
@@ -143,7 +143,7 @@ namespace HaxlSharp.Test
         {
             var expression = from x in a
                              from y in b
-                             //split
+                                 //split
                              from z in c(x)
                              from w in d(y)
                              select x + y + z + w;
@@ -172,7 +172,7 @@ namespace HaxlSharp.Test
         {
             var expression = from x in a
                              from y in b
-                             //split
+                                 //split
                              from z in c(x)
                              from w in d(y)
                              select x + y + z + w;
@@ -209,6 +209,22 @@ namespace HaxlSharp.Test
 
             var split = Splitter.Split(expression);
             var result = await RunSplits.Run(split);
+        }
+
+        [TestMethod]
+        public void OneLiner()
+        {
+            var oneLine = from x in new Identity<int>(3)
+                          select x + 1;
+        }
+
+        [TestMethod]
+        public async Task SelectTest()
+        {
+            var number = new Identity<int>(3);
+            var plusOne = number.Select(num => num + 1);
+            var four = await plusOne.Fetch();
+            Assert.AreEqual(4, four);
         }
     }
 }
