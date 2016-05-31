@@ -62,21 +62,32 @@ namespace HaxlSharp
             var projectedParams = vars.Select(v => v.ProjectVariables.ParameterNames);
             var boundVarQueue = BoundQueryVars(projectedParams);
 
+            Action<bool> addCurrentSegment = isProject =>
+            {
+                if (!currentSegment.Expressions.Any()) return;
+                segments.Add(currentSegment);
+                currentSegment = new ApplicativeGroup(isProject);
+            };
+
             foreach (var expr in vars)
             {
                 var split = ShouldSplit(expr, currentSegment.BoundVariables, seenParameters);
                 currentSegment.BoundVariables.AddRange(expr.BindVariables.ParameterNames);
-                if (split)
-                {
-                    segments.Add(currentSegment);
-                    currentSegment = new ApplicativeGroup();
-                }
+                var hasProject = expr.ProjectVariables.Free.Any(f => !boundParams.Contains(f.Name));
+
+                if (split) addCurrentSegment(false);
+
                 currentSegment.Expressions.Add(expr.Expressions.Bind);
-                if (expr.ProjectVariables.Free.Any(f => !boundParams.Contains(f.Name))) currentSegment.Expressions.Add(expr.Expressions.Project);
+
+                if (hasProject)
+                {
+                    addCurrentSegment(true);
+                    currentSegment.Expressions.Add(expr.Expressions.Project);
+                    addCurrentSegment(false);
+                }
             }
-            var finalProject = currentSegment.Expressions.Last();
-            currentSegment.Expressions.RemoveAt(currentSegment.Expressions.Count - 1);
-            segments.Add(currentSegment);
+            var finalProject = segments.Last().Expressions.First();
+            segments.RemoveAt(segments.Count - 1);
             return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
         }
 

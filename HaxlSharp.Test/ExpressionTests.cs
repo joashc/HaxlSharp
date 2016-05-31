@@ -32,26 +32,57 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task ExpressionTest()
         {
-            var nested = from xa in new Identity<int>(66)
-                             // split
-                         from za in c(xa)
-                         from ya in b
-                         select xa + ya + za;
+            var nested =     from xa in new Identity<int>(66)   // Group 0.1
+                             // split                           // =========
+                             from za in c(xa)                   // Group 1.1
+                             from ya in b                       // Group 1.2
+                             //projection                       // =========
+                             select xa + ya + za;               // Group 2.1 (Projection)
+            var expression = from x in nested                   // 
+                             // split                           // =========
+                             from z in c(x)                     // Group 3.1
+                             from y in b                        // Group 3.2
+                             // split                           // =========
+                             from w in d(y)                     // Group 4.1
+                             select x + y + z + w;              // Final Projection
 
-            var expression = from x in nested
-                                 //split
-                             from z in c(x)
-                             from y in b
-                                 // split
-                             from w in d(y)
-                             select x + y + z + w;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(4, split.Segments.Count());
-            Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(3, CountAt(split, 1));
-            Assert.AreEqual(2, CountAt(split, 2));
-            Assert.AreEqual(1, CountAt(split, 3));
             var result = await RunSplits.Run(split);
+            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
+            Assert.AreEqual(1, CountAt(split, 0));
+            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 2)); 
+            Assert.AreEqual(2, CountAt(split, 3));
+            Assert.AreEqual(1, CountAt(split, 4));
+        }
+
+        [TestMethod]
+        public async Task ExpressionTestDuplicate()
+        {
+            var nested =     from xa in new Identity<int>(66)   // Group 0.1
+                             // split                           // =========
+                             from za in c(xa)                   // Group 1.1
+                             from ya in b                       // Group 1.2
+                             //projection                       // =========
+                             select xa + ya + za;               // Group 2.1 (Projection)
+            var expression = from x in nested                   // 
+                             // split                           // =========
+                             from z in c(x)                     // Group 3.1
+                             from y in b                        // Group 3.2
+                             // split                           // =========
+                             from w in d(y)                     // Group 4.1
+                             select x + y + z + w;              // Final Projection
+
+            var split = Splitter.Split(expression);
+            var result = await RunSplits.Run(split);
+            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
+            Assert.AreEqual(1, CountAt(split, 0));
+            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 2)); 
+            Assert.AreEqual(2, CountAt(split, 3));
+            Assert.AreEqual(1, CountAt(split, 4));
         }
 
         [TestMethod]
@@ -63,7 +94,7 @@ namespace HaxlSharp.Test
                              from z in c2(x, y)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Count());
+            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
         }
@@ -77,7 +108,7 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Count());
+            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
         }
@@ -92,7 +123,7 @@ namespace HaxlSharp.Test
                              from z in c(nested.x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Count());
+            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
         }
@@ -106,7 +137,7 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Count());
+            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
         }
@@ -120,7 +151,7 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Count());
+            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
 
@@ -135,7 +166,7 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(3, split.Segments.Count());
+            Assert.AreEqual(3, split.Segments.Where(s => !s.IsProjectGroup).Count());
         }
 
         [TestMethod]
@@ -200,7 +231,7 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task SequenceRewriteConcurrent()
         {
-            var list = Enumerable.Range(0, 10);
+            var list = Enumerable.Range(0, 1000);
             Func<int, Identity<int>> mult10 = x => new Identity<int>(x * 10);
             var expression = from x in new Identity<IEnumerable<int>>(list)
                              from multiplied in x.Select(mult10).Sequence()
@@ -209,6 +240,7 @@ namespace HaxlSharp.Test
 
             var split = Splitter.Split(expression);
             var result = await RunSplits.Run(split);
+            ;
         }
 
         [TestMethod]

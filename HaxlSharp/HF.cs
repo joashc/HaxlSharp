@@ -48,14 +48,16 @@ namespace HaxlSharp
 
     public class ApplicativeGroup
     {
-        public ApplicativeGroup(List<LambdaExpression> expressions = null, List<string> boundVariables = null)
+        public ApplicativeGroup(bool isProjectGroup = false, List<LambdaExpression> expressions = null, List<string> boundVariables = null)
         {
             Expressions = expressions ?? new List<LambdaExpression>();
             BoundVariables = boundVariables ?? new List<string>();
+            IsProjectGroup = isProjectGroup;
         }
 
         public readonly List<LambdaExpression> Expressions;
         public readonly List<string> BoundVariables;
+        public readonly bool IsProjectGroup;
     }
 
     public class Identity<A> : Expr<A>
