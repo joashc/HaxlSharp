@@ -45,7 +45,7 @@ Here's what will happen if we execute this method:
 This code will sequentially execute four calls that could have been executed concurrently! We could manually deal with the concurrency by sprinkling our code with `Task.WhenAll`, but this is error-prone, obscures the meaning of the code, and relies on the programmer to reason about concurrency.
 
 ## A solution: automatic batching
-This library allows us to write code that *looks* sequential, but is capable of being analyzed to determine the requestswe can fetch concurrently, and then automatically batch these requests together.
+This library allows us to write code that *looks* sequential, but is capable of being analyzed to determine the requests we can fetch concurrently, and then automatically batch these requests together.
 
 Let's rewrite `GetPostDetails` in this style:
 
