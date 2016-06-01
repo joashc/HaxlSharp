@@ -32,12 +32,13 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task ExpressionTest()
         {
-            var nested =     from xa in new FetchResult<int>(66)      // Group 0.1
+            var nested =     from x in new FetchResult<string>("1")      // Group 0.1
                              // split                                 // =========
-                             from za in c(xa)                         // Group 1.1
+                             from za in c(int.Parse(x))                          // Group 1.1
                              from ya in b                             // Group 1.2
                              //projection                             // =========
-                             select xa + ya + za;                     // Group 2.1 (Projection)
+                             select ya;                     // Group 2.1 (Projection)
+
             var expression = from x in nested                         // 
                              // split                                 // =========
                              from z in c(x)                           // Group 3.1

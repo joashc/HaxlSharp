@@ -101,6 +101,7 @@ namespace HaxlSharp
                     var result = Unwrap(wrapped);
                     Debug.WriteLine($"Projected {bindTo}: {result}\n");
                     boundVariables[bindTo] = result;
+                    rebindTransparent.BlockCount++;
                     continue;
                 }
                 if (!segment.Expressions.Any()) continue;
@@ -123,7 +124,7 @@ namespace HaxlSharp
                     return Task.Factory.StartNew(() =>
                     {
                         dynamic sequence = c.Fetch;
-                        var result = sequence.FetchMe(fetcher);
+                        var result = sequence.FetchSequence(fetcher);
                         boundVariables[c.BindName] = result;
                         Debug.WriteLine($"Fetched {c.BindName}: {result}");
                     });

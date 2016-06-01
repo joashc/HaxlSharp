@@ -65,8 +65,6 @@ namespace HaxlSharp
 
             var vars = expression.CollectedExpressions.Select(GetVariables);
             var boundParams = vars.SelectMany(v => v.BindVariables.ParameterNames);
-            var projectedParams = vars.Select(v => v.ProjectVariables.ParameterNames);
-            var boundVarQueue = BoundQueryVars(projectedParams);
 
             Action<bool> addCurrentSegment = isProject =>
             {
@@ -75,11 +73,17 @@ namespace HaxlSharp
                 currentSegment = new ApplicativeGroup(isProject);
             };
 
+            var blockCount = 0;
+
             foreach (var expr in vars)
             {
                 var split = ShouldSplit(expr, currentSegment.BoundVariables, seenParameters);
                 currentSegment.BoundVariables.AddRange(expr.BindVariables.ParameterNames);
                 var hasProject = expr.ProjectVariables.Free.Any(f => !boundParams.Contains(f.Name));
+                if (hasProject) {
+                    currentSegment.BoundVariables.AddRange(expr.ProjectVariables.Free.Select(f => f.Name));
+                    seenParameters.Clear();
+                }
 
                 if (split) addCurrentSegment(false);
 
@@ -87,11 +91,14 @@ namespace HaxlSharp
 
                 if (hasProject)
                 {
+                    blockCount++;
                     addCurrentSegment(true);
                     currentSegment.Expressions.Add(expr.Expressions.Project);
                     addCurrentSegment(false);
                 }
             }
+
+            var boundVarQueue = BoundQueryVars(segments);
             var finalProject = segments.Last().Expressions.First();
             segments.RemoveAt(segments.Count - 1);
             return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
@@ -124,17 +131,25 @@ namespace HaxlSharp
             return new ExpressionVariables(pair, bindVars, projectVars);
         }
 
-        private static Queue<string> BoundQueryVars(IEnumerable<IEnumerable<string>> nameGroups)
+        private static Queue<string> BoundQueryVars(List<ApplicativeGroup> groups)
         {
             var seen = new HashSet<string>();
             var nameQueue = new Queue<string>();
-            foreach (var nameGroup in nameGroups)
+            var i = 0;
+            foreach (var group in groups)
             {
-                var unseen = nameGroup.Where(name => !seen.Contains(name));
+                // Handle composed queries 
+                if (group.IsProjectGroup) 
+                {
+                    i++;
+                    seen.Clear();
+                }
+                var unseen = group.BoundVariables.Where(name => !seen.Contains(name));
                 foreach (var param in unseen)
                 {
                     seen.Add(param);
-                    nameQueue.Enqueue(param);
+                    var prefixed = $"{i}{param}";
+                    nameQueue.Enqueue(prefixed);
                 }
             }
             return nameQueue;

@@ -86,7 +86,7 @@ namespace HaxlSharp
             Bind = bind;
         }
 
-        public IEnumerable<B> FetchMe(Fetcher fetcher)
+        public IEnumerable<B> FetchSequence(Fetcher fetcher)
         {
             var tasks = List.Select(a =>
             {
@@ -132,54 +132,6 @@ namespace HaxlSharp
         {
             return new RequestSequence<A, B>(list, bind);
         }
-
-        public static Fetch<IEnumerable<A>> Sequence<A>(this IEnumerable<Fetch<A>> fetches)
-        {
-            return SequenceWithDepth(fetches, 100);
-        }
-
-        /// <summary>
-        /// This implementation sort of does trampolining to avoid stack overflows,
-        /// but for performance reasons it recursively divides the list
-        /// into groups up to a recursion depth, instead of trampolining every iteration.
-        ///
-        /// This should limit the recursion depth to around 
-        /// $$s\log_{s}{n}$$
-        /// where s is the specified recursion depth limit
-        /// </summary>
-        public static Fetch<IEnumerable<A>> SequenceWithDepth<A>(IEnumerable<Fetch<A>> dists, int recursionDepth)
-        {
-            var sections = dists.Count() / recursionDepth;
-            if (sections <= 1) return RunSequence(dists);
-            return from nested in SequenceWithDepth(SequencePartial(dists, recursionDepth), recursionDepth)
-                   select nested.SelectMany(a => a);
-        }
-
-        /// <summary>
-        /// `sequence` can be implemented as
-        /// sequence xs = foldr (liftM2 (:)) (return []) xs
-        /// </summary>
-        private static Fetch<IEnumerable<A>> RunSequence<A>(IEnumerable<Fetch<A>> dists)
-        {
-            return dists.Aggregate(
-                new FetchResult<IEnumerable<A>>(new List<A>()) as Fetch<IEnumerable<A>>,
-                (listFetch, aFetch) => from a in aFetch
-                                       from list in listFetch
-                                       select Haxl.Append(list, a)
-            );
-        }
-
-        /// <summary>
-        /// Divide a list of distributions into groups of given size, then runs sequence on each group
-        /// </summary>
-        /// <returns>The list of sequenced distribution groups</returns>
-        private static IEnumerable<Fetch<IEnumerable<A>>> SequencePartial<A>(IEnumerable<Fetch<A>> dists, int groupSize)
-        {
-            var numGroups = dists.Count() / groupSize;
-            return Enumerable.Range(0, numGroups)
-                             .Select(groupNum => RunSequence(dists.Skip(groupNum * groupSize).Take(groupSize)));
-        }
-
 
         public static Task<A> Fetch<A>(this Fetch<A> expr)
         {

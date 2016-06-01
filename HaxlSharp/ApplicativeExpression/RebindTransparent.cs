@@ -12,6 +12,8 @@ namespace HaxlSharp
     {
         private List<string> paramNames;
         private ParameterExpression boundVariablesParameter;
+        public int BlockCount { get; set; }
+
         public LambdaExpression Rewrite(LambdaExpression lambda)
         {
             paramNames = lambda.Parameters.Select(p => p.Name).Where(n => !n.StartsWith("<>h__Trans")).ToList();
@@ -33,7 +35,7 @@ namespace HaxlSharp
             {
                 var memberType = DetectApplicative.GetTransMemberType(node);
                 var memberName = node.Member.Name;
-                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant(memberName));
+                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{memberName}"));
                 return Expression.Convert(result, memberType);
             }
             return base.VisitMember(node);
@@ -45,7 +47,7 @@ namespace HaxlSharp
             {
                 var memberType = node.Type;
                 var memberName = node.Name;
-                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant(memberName));
+                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{memberName}"));
                 return Expression.Convert(result, memberType);
             }
             return node;

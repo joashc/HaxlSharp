@@ -43,13 +43,15 @@ namespace HaxlSharp.Test
 
 
         [TestMethod]
-        public void SharedDependency()
+        public async Task SharedDependency()
         {
             var fetch =
                 from postIds in FetchAllPostIds()
                 from postInfo in postIds.SelectFetch(Blog.FetchPostInfo)
                 from firstPostInfo in FetchPostInfo(postIds.First())
                 select firstPostInfo;
+            var split = Splitter.Split(fetch);
+            var result = await RunSplits.Run(split, Fetcher());
         }
 
         [TestMethod]
