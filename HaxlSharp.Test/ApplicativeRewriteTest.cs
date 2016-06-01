@@ -79,7 +79,24 @@ namespace HaxlSharp.Test
             var fetch = from latest in FetchTwoLatestPosts()
                         from first in GetPostDetails(latest.Item1)
                         from second in GetPostDetails(latest.Item2)
-                        select first;
+                        select new List<PostDetails> { first, second };
+            var result = await BlogFetch(fetch);
+        }
+
+        [TestMethod]
+        public async Task TwoLatestExampleAgain()
+        {
+            var fetch = from latest in FetchTwoLatestPosts()
+                        from first in GetPostDetails(latest.Item1 + 1)
+                        from second in GetPostDetails(latest.Item2 + 2)
+                        select new List<PostDetails> { first, second };
+            var result = await BlogFetch(fetch);
+        }
+
+        [TestMethod]
+        public async Task FetchDetails()
+        {
+            var fetch = GetPostDetails(1);
             var result = await BlogFetch(fetch);
         }
 

@@ -20,7 +20,7 @@ namespace HaxlSharp.Test
 
         public override string ToString()
         {
-            return $"{{ PostId: {PostId}, PostDate: {PostDate}, PostTopic: {PostTopic}}}";
+            return $"PostInfo {{ PostId: {PostId}, PostDate: {PostDate}, PostTopic: {PostTopic}}}";
         }
     }
 }

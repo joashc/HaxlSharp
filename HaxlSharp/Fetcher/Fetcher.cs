@@ -10,6 +10,8 @@ namespace HaxlSharp
     {
         Task<Result> Fetch(GenericRequest request);
         Task<IEnumerable<Result>> FetchBatch(IEnumerable<GenericRequest> requests);
+
+        Task<A> Fetch<A>(Fetch<A> request);
     }
 
     public class DefaultFetcher : Fetcher
@@ -46,6 +48,12 @@ namespace HaxlSharp
             var tasks = requests.Select(Fetch);
             var resultArray = await Task.WhenAll(tasks);
             return resultArray;
+        }
+
+        public Task<A> Fetch<A>(Fetch<A> request)
+        {
+            var split = Splitter.Split(request);
+            return RunSplits.Run(split, this);
         }
     }
 }

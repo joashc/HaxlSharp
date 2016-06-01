@@ -98,7 +98,7 @@ namespace HaxlSharp
             {
                 if (store.ContainsKey(result.BindName)) throw new ApplicationException($"Bind variable {result.BindName} has already been written.");
                 store[result.BindName] = result.Value;
-                Debug.WriteLine($"Fetched {result.BindName}: {result.Value}");
+                Debug.WriteLine($"Fetched '{result.BindName}': {result.Value}");
             }
         }
 
@@ -138,7 +138,7 @@ namespace HaxlSharp
                     var bindTo = splits.NameQueue.Dequeue();
                     var wrapped = rewritten.Compile().DynamicInvoke(boundVariables);
                     var result = Unwrap(wrapped);
-                    Debug.WriteLine($"Projected {bindTo}: {result}\n");
+                    Debug.WriteLine($"Projected '{bindTo}': {result}\n");
                     boundVariables[bindTo] = result;
                     rebindTransparent.BlockCount++;
                     continue;
@@ -166,7 +166,7 @@ namespace HaxlSharp
                         dynamic sequence = c.Fetch;
                         var result = sequence.FetchSequence(fetcher);
                         boundVariables[c.BindName] = result;
-                        Debug.WriteLine($"Fetched {c.BindName}: {result}");
+                        Debug.WriteLine($"Fetched '{c.BindName}': {result}");
                     });
                 }).ToList();
 
@@ -185,7 +185,7 @@ namespace HaxlSharp
                         var select = c.Fetch as Fetchable;
                         var result = select.RunFetch(fetcher);
                         boundVariables[c.BindName] = result;
-                        Debug.WriteLine($"Fetched {c.BindName}: {result}");
+                        Debug.WriteLine($"Fetched '{c.BindName}': {result}");
                     });
                 }).ToArray();
 

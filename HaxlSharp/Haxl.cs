@@ -9,7 +9,7 @@ namespace HaxlSharp
     /// <summary>
     /// Contains constructor functions.
     /// </summary>
-    public static class Haxl
+    public static partial class Haxl
     {
         public static IEnumerable<A> Append<A>(this IEnumerable<A> list, A value)
         {
@@ -22,5 +22,6 @@ namespace HaxlSharp
         {
             return new Request<A>(request);
         }
+
     }
 }

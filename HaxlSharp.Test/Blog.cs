@@ -118,11 +118,11 @@ namespace HaxlSharp.Test
             return new FetchPostViews(postId).ToFetch();
         }
 
-        public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
+        public static Fetch<PostDetails> GetPostDetails(int postId)
         {
             var x = from info in FetchPostInfo(postId)
                     from content in FetchPostContent(postId)
-                    select new Tuple<PostInfo, string>(info, content);
+                    select new PostDetails(info, content);
             return x;
         }
 
@@ -144,5 +144,23 @@ namespace HaxlSharp.Test
         }
 
     }
+
+    public class PostDetails
+    {
+        public PostInfo Info;
+        public string Content;
+        public PostDetails(PostInfo info, string content)
+        {
+            Info = info;
+            Content = content;
+        }
+
+        public override string ToString()
+        {
+            return $"PostDetails {{ {Info}, {Content} }}";
+        }
+    }
+
+
 
 }
