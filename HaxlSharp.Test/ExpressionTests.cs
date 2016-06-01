@@ -17,11 +17,11 @@ namespace HaxlSharp.Test
     public class ExpressionTests
     {
         public const int global = 2;
-        public static Identity<int> a = new Identity<int>(global);
-        public static Identity<int> b = new Identity<int>(3);
-        public static Func<int, Identity<int>> c = i => new Identity<int>(i);
-        public static Func<int, int, Identity<int>> c2 = (i, i2) => new Identity<int>(i);
-        public static Func<int, Identity<int>> d = i => new Identity<int>(i);
+        public static FetchResult<int> a = new FetchResult<int>(global);
+        public static FetchResult<int> b = new FetchResult<int>(3);
+        public static Func<int, FetchResult<int>> c = i => new FetchResult<int>(i);
+        public static Func<int, int, FetchResult<int>> c2 = (i, i2) => new FetchResult<int>(i);
+        public static Func<int, FetchResult<int>> d = i => new FetchResult<int>(i);
         public static Nested nested = new Nested();
 
         public static int CountAt<A>(SplitApplicatives<A> split, int i)
@@ -32,22 +32,23 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task ExpressionTest()
         {
-            var nested =     from xa in new Identity<int>(66)   // Group 0.1
-                             // split                           // =========
-                             from za in c(xa)                   // Group 1.1
-                             from ya in b                       // Group 1.2
-                             //projection                       // =========
-                             select xa + ya + za;               // Group 2.1 (Projection)
-            var expression = from x in nested                   // 
-                             // split                           // =========
-                             from z in c(x)                     // Group 3.1
-                             from y in b                        // Group 3.2
-                             // split                           // =========
-                             from w in d(y)                     // Group 4.1
-                             select x + y + z + w;              // Final Projection
+            var nested =     from xa in new FetchResult<int>(66)      // Group 0.1
+                             // split                                 // =========
+                             from za in c(xa)                         // Group 1.1
+                             from ya in b                             // Group 1.2
+                             //projection                             // =========
+                             select xa + ya + za;                     // Group 2.1 (Projection)
+            var expression = from x in nested                         // 
+                             // split                                 // =========
+                             from z in c(x)                           // Group 3.1
+                             from y in b                              // Group 3.2
+                             // split                                 // =========
+                             from w in d(y)                           // Group 4.1
+                             // projection                            // =========
+                             select x + y + z + w;                    // Final Projection
 
             var split = Splitter.Split(expression);
-            var result = await RunSplits.Run(split);
+            var result = await split.FetchSplit();
             Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
             Assert.AreEqual(1, CountAt(split, 0));
@@ -60,22 +61,23 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task ExpressionTestDuplicate()
         {
-            var nested =     from xa in new Identity<int>(66)   // Group 0.1
-                             // split                           // =========
-                             from za in c(xa)                   // Group 1.1
-                             from ya in b                       // Group 1.2
-                             //projection                       // =========
-                             select xa + ya + za;               // Group 2.1 (Projection)
-            var expression = from x in nested                   // 
-                             // split                           // =========
-                             from z in c(x)                     // Group 3.1
-                             from y in b                        // Group 3.2
-                             // split                           // =========
-                             from w in d(y)                     // Group 4.1
-                             select x + y + z + w;              // Final Projection
+            var nested =     from xa in new FetchResult<int>(66)      // Group 0.1
+                             // split                                 // =========
+                             from za in c(xa)                         // Group 1.1
+                             from ya in b                             // Group 1.2
+                             //projection                             // =========
+                             select xa + ya + za;                     // Group 2.1 (Projection)
+            var expression = from x in nested                         // 
+                             // split                                 // =========
+                             from z in c(x)                           // Group 3.1
+                             from y in b                              // Group 3.2
+                             // split                                 // =========
+                             from w in d(y)                           // Group 4.1
+                             // projection                            // =========
+                             select x + y + z + w;                    // Final Projection
 
             var split = Splitter.Split(expression);
-            var result = await RunSplits.Run(split);
+            var result = await split.FetchSplit();
             Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
             Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
             Assert.AreEqual(1, CountAt(split, 0));
@@ -89,7 +91,7 @@ namespace HaxlSharp.Test
         public void ExpressionTest2()
         {
             var expression = from x in a
-                             from y in new Identity<int>(nested.x)
+                             from y in new FetchResult<int>(nested.x)
                                  // split
                              from z in c2(x, y)
                              select x + y + z;
@@ -170,35 +172,6 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public void Rewrite()
-        {
-            var expression = from x in a
-                             from y in b
-                                 //split
-                             from z in c(x)
-                             from w in d(y)
-                             select x + y + z + w;
-            var split = Splitter.Split(expression);
-
-            var rebindTransparent = new RebindTransparent();
-            var test = split.Segments.SelectMany(seg => seg.Expressions.Select(rebindTransparent.Rewrite)).ToList();
-            var boundVariables = new Dictionary<string, object>();
-            var nameQueue = new Queue<string>();
-            nameQueue.Enqueue("x");
-            nameQueue.Enqueue("y");
-            nameQueue.Enqueue("z");
-            nameQueue.Enqueue("w");
-            foreach (var expr in test)
-            {
-                var result = expr.Compile().DynamicInvoke(boundVariables);
-                boundVariables[nameQueue.Dequeue()] = RunSplits.FetchId(result);
-            }
-            var finalProject = rebindTransparent.Rewrite(split.FinalProject);
-            var final = finalProject.Compile().DynamicInvoke(boundVariables);
-            Assert.AreEqual(10, final);
-        }
-
-        [TestMethod]
         public async Task ConcurrentRewrite()
         {
             var expression = from x in a
@@ -209,19 +182,18 @@ namespace HaxlSharp.Test
                              select x + y + z + w;
             var split = Splitter.Split(expression);
 
-            var final = await RunSplits.Run(split);
-            Assert.AreEqual(10, final);
-
+            var result = await split.FetchSplit();
+            Assert.AreEqual(10, result);
         }
 
         [TestMethod]
         public void SequenceRewrite()
         {
             var list = Enumerable.Range(0, 10);
-            Func<int, Identity<int>> mult10 = x => new Identity<int>(x * 10);
-            var expression = from x in new Identity<IEnumerable<int>>(list)
-                             from multiplied in x.Select(mult10).Sequence()
-                             from added in x.Select(num => new Identity<int>(num + 1)).Sequence()
+            Func<int, FetchResult<int>> mult10 = x => new FetchResult<int>(x * 10);
+            var expression = from x in new FetchResult<IEnumerable<int>>(list)
+                             from multiplied in x.SelectFetch(mult10)
+                             from added in x.SelectFetch(num => new FetchResult<int>(num + 1))
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
@@ -232,28 +204,28 @@ namespace HaxlSharp.Test
         public async Task SequenceRewriteConcurrent()
         {
             var list = Enumerable.Range(0, 1000);
-            Func<int, Identity<int>> mult10 = x => new Identity<int>(x * 10);
-            var expression = from x in new Identity<IEnumerable<int>>(list)
-                             from multiplied in x.Select(mult10).Sequence()
-                             from added in x.Select(num => new Identity<int>(num)).Sequence()
+            Func<int, FetchResult<int>> mult10 = x => new FetchResult<int>(x * 10);
+            var expression = from x in new FetchResult<IEnumerable<int>>(list)
+                             from multiplied in x.SelectFetch(mult10)
+                             from added in x.SelectFetch(num => new FetchResult<int>(num))
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
-            var result = await RunSplits.Run(split);
+            var result = await split.FetchSplit();
             ;
         }
 
         [TestMethod]
         public void OneLiner()
         {
-            var oneLine = from x in new Identity<int>(3)
+            var oneLine = from x in new FetchResult<int>(3)
                           select x + 1;
         }
 
         [TestMethod]
         public async Task SelectTest()
         {
-            var number = new Identity<int>(3);
+            var number = new FetchResult<int>(3);
             var plusOne = number.Select(num => num + 1);
             var four = await plusOne.Fetch();
             Assert.AreEqual(4, four);

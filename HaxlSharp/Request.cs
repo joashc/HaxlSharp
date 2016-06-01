@@ -7,67 +7,126 @@ using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
-    public interface Request<A>
+    /// <summary>
+    /// Simulate existential types by packaging the request with its type information. 
+    /// </summary>
+    public class GenericRequest
     {
-        A RunRequest();
-    }
-
-    public interface Unblocker
-    {
-        void BlockedRequest<A>(Request<A> request, Task<A> fetchTask);
-        void BlockedRequests<A, B>(BlockedRequestList<A> br1, BlockedRequestList<B> br2);
-    }
-
-    public interface BlockedRequestList<A>
-    {
-        void Run(Unblocker unblocker);
-    }
-
-    public class BlockedRequest<A> : BlockedRequestList<A>
-    {
-        public readonly Request<A> request;
-        public readonly Task<A> fetchTask;
-        public BlockedRequest(Request<A> request, Task<A> fetchTask)
+        public readonly object TypedRequest;
+        public readonly Type RequestType;
+        public readonly string BindName;
+        public GenericRequest(object typedRequest, Type requestType, string bindName)
         {
-            this.request = request;
-            this.fetchTask = fetchTask;
-        }
-
-        public void Run(Unblocker unblocker)
-        {
-            unblocker.BlockedRequest(request, fetchTask);
+            TypedRequest = typedRequest;
+            RequestType = requestType;
+            BindName = bindName;
         }
     }
 
-    public class BlockedRequests<B, A> : BlockedRequestList<A>
+    public class Result
     {
-        public readonly BlockedRequestList<A> br1;
-        public readonly BlockedRequestList<B> br2;
-        public BlockedRequests(BlockedRequestList<A> br1, BlockedRequestList<B> br2)
+        public readonly object Value;
+        public readonly string BindName;
+        public readonly Type ResultType;
+        public Result(object value, Type resultType, string bindName)
         {
-            this.br1 = br1;
-            this.br2 = br2;
-        }
-
-        public void Run(Unblocker unblocker)
-        {
-            unblocker.BlockedRequests(br1, br2);
+            Value = value;
+            ResultType = resultType;
+            BindName = bindName;
         }
     }
 
-    public interface Fetcher
+    public interface Returns<A> { }
+
+    public interface CachableRequest<A> : Returns<A>
     {
-        Task<A> AwaitResult<A>(Request<A> request);
+        string CacheKey { get; }
     }
 
-    public static class RequestExt
+    public class FetcherBuilder
     {
-        public static Fetch<A> DataFetch<A>(this Request<A> request, Fetcher fetcher)
+        private readonly Dictionary<Type, Func<GenericRequest, Result>> _fetchFunctions;
+        private readonly Dictionary<Type, Func<GenericRequest, Task<Result>>> _asyncFetchFunctions;
+        public FetcherBuilder()
         {
-            var br = new BlockedRequest<A>(request, fetcher.AwaitResult(request));
-            var cont = Done(() => br.fetchTask.Result);
-            var awaiter = new Task(() => { br.fetchTask.Start(); br.fetchTask.Wait(); });
-            return new Blocked<A>(cont, new List<Task> { awaiter });
+            _fetchFunctions = new Dictionary<Type, Func<GenericRequest, Result>>();
+            _asyncFetchFunctions = new Dictionary<Type, Func<GenericRequest, Task<Result>>>();
+        }
+
+        public static FetcherBuilder New()
+        {
+            return new FetcherBuilder();
+        }
+
+        /// <summary>
+        /// Creates untyped fetch function from typed fetch function.
+        /// </summary>
+        private Func<GenericRequest, Result> CreateFetchFunc<Req, Res>(Func<Req, Res> fetchFunc) where Req : Returns<Res>
+        {
+            var resultType = typeof(Res);
+            var requestType = typeof(Req);
+            Func<GenericRequest, Result> untypedFetchFunc = request =>
+            {
+                if (request.RequestType != requestType) throw new ArgumentException("Invalid request type");
+                var typedRequest = (Req)request.TypedRequest;
+                var result = fetchFunc(typedRequest);
+                return new Result(result, typeof(Res), request.BindName);
+            };
+            return untypedFetchFunc;
+        }
+
+        /// <summary>
+        /// Creates untyped async fetch function from typed async fetch function.
+        /// </summary>
+        private Func<GenericRequest, Task<Result>> CreateAsyncFetchFunc<Req, Res>(Func<Req, Task<Res>> fetchFunc) where Req : Returns<Res>
+        {
+            var resultType = typeof(Res);
+            var requestType = typeof(Req);
+            Func<GenericRequest, Task<Result>> untypedFetchFunc = async blockedRequest =>
+            {
+                if (blockedRequest.RequestType != requestType) throw new ArgumentException($"Request type mismatch: expected '{requestType}', got '{blockedRequest.RequestType}'");
+                var typedRequest = (Req)blockedRequest.TypedRequest;
+                var result = await fetchFunc(typedRequest);
+                return new Result(result, typeof(Res), blockedRequest.BindName);
+            };
+            return untypedFetchFunc;
+        }
+
+        /// <summary>
+        /// Throws exception if there's already a handler registered for given type. 
+        /// </summary>
+        private void ThrowIfRegistered(Type requestType)
+        {
+            if (!_fetchFunctions.ContainsKey(requestType) && !_asyncFetchFunctions.ContainsKey(requestType)) return;
+            throw new ArgumentException($"Attempted to register multiple handlers for request type '{requestType}'");
+        }
+
+        /// <summary>
+        /// Adds a request handler to the fetcher.
+        /// </summary>
+        public FetcherBuilder FetchRequest<Req, Res>(Func<Req, Res> fetchFunction) where Req : Returns<Res>
+        {
+            var requestType = typeof(Req);
+            ThrowIfRegistered(requestType);
+            _fetchFunctions.Add(requestType, CreateFetchFunc(fetchFunction));
+            return this;
+        }
+
+        /// <summary>
+        /// Adds an async request handler to the fetcher.
+        /// </summary>
+        public FetcherBuilder HandleRequest<Req, Res>(Func<Req, Task<Res>> fetchFunction) where Req : Returns<Res>
+        {
+            var requestType = typeof(Req);
+            ThrowIfRegistered(requestType);
+            _asyncFetchFunctions.Add(requestType, CreateAsyncFetchFunc(fetchFunction));
+            return this;
+        }
+
+        public Fetcher Create()
+        {
+            return new DefaultFetcher(_fetchFunctions, _asyncFetchFunctions);
         }
     }
 }
+

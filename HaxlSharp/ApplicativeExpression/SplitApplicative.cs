@@ -9,13 +9,13 @@ namespace HaxlSharp
 {
     public class SplitApplicatives<A>
     {
-        public readonly Expr<A> Expression;
+        public readonly Fetch<A> Expression;
         public readonly IEnumerable<ApplicativeGroup> Segments;
         public readonly bool IsIdentity;
         public readonly Queue<string> NameQueue;
         public readonly LambdaExpression FinalProject;
 
-        public SplitApplicatives(Expr<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
+        public SplitApplicatives(Fetch<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
         {
             Expression = expression;
             Segments = segments;
@@ -24,11 +24,12 @@ namespace HaxlSharp
             FinalProject = finalProject;
         }
 
-        public SplitApplicatives(Expr<A> expression)
+        public SplitApplicatives(Fetch<A> expression)
         {
             IsIdentity = true;
             Expression = expression;
         }
+
     }
 
     public class ExpressionVariables
@@ -47,7 +48,12 @@ namespace HaxlSharp
 
     public static class Splitter
     {
-        public static SplitApplicatives<A> Split<A>(Expr<A> expression)
+        public static Task<A> FetchSplit<A>(this SplitApplicatives<A> splits)
+        {
+            return RunSplits.Run(splits, new DefaultFetcher(new Dictionary<Type, Func<GenericRequest, Result>>(), new Dictionary<Type, Func<GenericRequest, Task<Result>>>()));
+        }
+
+        public static SplitApplicatives<A> Split<A>(Fetch<A> expression)
         {
             if (IsIdentity(expression)) return new SplitApplicatives<A>(expression);
             var segments = new List<ApplicativeGroup>();
@@ -91,9 +97,9 @@ namespace HaxlSharp
             return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
         }
 
-        public static bool IsIdentity<A>(Expr<A> expression)
+        public static bool IsIdentity<A>(Fetch<A> expression)
         {
-            return expression is Identity<A>;
+            return expression is Request<A> || expression is FetchResult<A>;
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)

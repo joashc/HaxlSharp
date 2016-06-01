@@ -16,87 +16,95 @@ namespace HaxlSharp.Test
         public int PostId { get; set; }
     }
 
-    public class FetchPosts : Request<IEnumerable<int>>
+    public class FetchPosts : Returns<IEnumerable<int>>
     {
-        IEnumerable<int> Request<IEnumerable<int>>.RunRequest()
-        {
-            return Enumerable.Range(0, 10);
-        }
     }
 
-    public class FetchPostInfo : Request<PostInfo>
+    public class FetchPostInfo : Returns<PostInfo>
     {
-        private readonly int _postId;
+        public readonly int PostId;
         public FetchPostInfo(int postId)
         {
-            _postId = postId;
-        }
-
-        public PostInfo RunRequest()
-        {
-            return new PostInfo(_postId, DateTime.Today.AddDays(-_postId), $"Topic {_postId % 3}");
+            PostId = postId;
         }
     }
 
-    public class GetTwoLatestsPosts : Request<Tuple<int, int>>
+    public class GetTwoLatestPosts : Returns<Tuple<int, int>>
     {
-        public Tuple<int, int> RunRequest()
-        {
-            return new Tuple<int, int>(0, 1);
-        }
     }
 
-    public class FetchPostContent : Request<string>
+    public class FetchPostContent : Returns<string>
     {
-        private readonly int _postId;
+        public readonly int PostId;
         public FetchPostContent(int postId)
         {
-            _postId = postId;
-        }
-
-        public string RunRequest()
-        {
-            return $"Post {_postId}";
+            PostId = postId;
         }
     }
 
-    public class FetchPostViews : Request<int>
+    public class FetchPostViews : Returns<int>
     {
-        private readonly int _postId;
+        public readonly int PostId;
         public FetchPostViews(int postId)
         {
-            _postId = postId;
-        }
-
-        public int RunRequest()
-        {
-            return (_postId * 33) % 53;
+            PostId = postId;
         }
     }
+
 
     public static class Blog
     {
+        public static Fetcher Fetcher()
+        {
+            return FetcherBuilder.New()
+
+                .FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
+                {
+                    return Enumerable.Range(0, 10);
+                })
+
+                .FetchRequest<FetchPostInfo, PostInfo>(req =>
+                {
+                    var postId = req.PostId;
+                    return new PostInfo(postId, DateTime.Today.AddDays(-postId), $"Topic {postId % 3}");
+                })
+
+                .FetchRequest<FetchPostContent, string>(req =>
+                {
+                    return $"Post {req.PostId}";
+                })
+
+                .FetchRequest<FetchPostViews, int>(req =>
+                {
+                    return (req.PostId * 33) % 53;
+                })
+
+                .FetchRequest<GetTwoLatestPosts, Tuple<int, int>>(req =>
+                {
+                    return new Tuple<int, int>(0, 1);
+                })
+
+                .Create();
+        }
+
         public static Fetch<Tuple<int, int>> FetchTwoLatestPosts()
         {
-            var fetcher = new MockFetcher();
-            return new GetTwoLatestsPosts().DataFetch(fetcher);
+            return new GetTwoLatestPosts().ToFetch();
         }
+
         public static Fetch<IEnumerable<int>> FetchAllPostIds()
         {
-            var fetcher = new MockFetcher();
-            return new FetchPosts().DataFetch(fetcher);
+            return new FetchPosts().ToFetch();
         }
 
         public static Fetch<PostInfo> FetchPostInfo(int postId)
         {
-            var fetcher = new MockFetcher();
-            return new FetchPostInfo(postId).DataFetch(fetcher);
+            return new FetchPostInfo(postId).ToFetch();
         }
 
         public static Fetch<string> FetchPostContent(int postId)
         {
-            var fetcher = new MockFetcher();
-            return new FetchPostContent(postId).DataFetch(fetcher);
+            return new FetchPostContent(postId).ToFetch();
         }
 
         public static Fetch<int> GetFirstPostId()
@@ -107,8 +115,7 @@ namespace HaxlSharp.Test
 
         public static Fetch<int> FetchPostViews(int postId)
         {
-            var fetcher = new MockFetcher();
-            return new FetchPostViews(postId).DataFetch(fetcher);
+            return new FetchPostViews(postId).ToFetch();
         }
 
         public static Fetch<Tuple<PostInfo, string>> GetPostDetails(int postId)
@@ -122,7 +129,7 @@ namespace HaxlSharp.Test
         public static Fetch<IEnumerable<PostInfo>> GetAllPostInfo()
         {
             return from postIds in FetchAllPostIds()
-                   from postInfo in postIds.Select(FetchPostInfo).Sequence()
+                   from postInfo in postIds.SelectFetch(FetchPostInfo)
                    select postInfo;
         }
 
@@ -132,23 +139,10 @@ namespace HaxlSharp.Test
                    from recentContent in
                         posts.OrderByDescending(p => p.PostDate)
                              .Take(4)
-                             .Select(pi => FetchPostContent(pi.PostId))
-                             .Sequence()
+                             .SelectFetch(pi => FetchPostContent(pi.PostId))
                    select recentContent;
         }
 
     }
 
-    public class MockFetcher : Fetcher
-    {
-        public Task<A> AwaitResult<A>(Request<A> request)
-        {
-            return new Task<A>(() =>
-            {
-                var result = request.RunRequest();
-                Debug.WriteLine($"Fetched: {result}");
-                return result;
-            });
-        }
-    }
 }

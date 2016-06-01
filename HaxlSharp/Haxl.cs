@@ -18,15 +18,9 @@ namespace HaxlSharp
             return appendList;
         }
 
-        public static Result<A> Done<A>(Func<A> result)
+        public static Fetch<A> ToFetch<A>(this Returns<A> request)
         {
-            return new Done<A>(result);
+            return new Request<A>(request);
         }
-
-        public static Result<A> Blocked<A>(Result<A> fetch, IEnumerable<Task> blockedRequests)
-        {
-            return new Blocked<A>(fetch, blockedRequests);
-        }
-
     }
 }

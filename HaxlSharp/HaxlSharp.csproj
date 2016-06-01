@@ -46,14 +46,11 @@
     <Compile Include="ApplicativeExpression\RebindTransparent.cs" />
     <Compile Include="ApplicativeExpression\RunSplits.cs" />
     <Compile Include="ApplicativeExpression\SplitApplicative.cs" />
-    <Compile Include="Fetcher.cs" />
+    <Compile Include="Fetcher\Fetcher.cs" />
     <Compile Include="Haxl.cs" />
-    <Compile Include="Fetch.cs" />
     <Compile Include="HF.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="QueryRewriter.cs" />
     <Compile Include="Request.cs" />
-    <Compile Include="Result.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
