@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Dynamic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace HaxlSharp
@@ -19,12 +21,39 @@ namespace HaxlSharp
                 return RunSplits.IsGenericTypeOf(type, typeof(RequestSequence<,>));
             }
         }
+
+        public bool IsSelect
+        {
+            get
+            {
+                var type = Fetch.GetType();
+                return RunSplits.IsGenericTypeOf(type, typeof(Select<,>));
+            }
+        }
+
+        public bool IsBind
+        {
+            get
+            {
+                var type = Fetch.GetType();
+                return RunSplits.IsGenericTypeOf(type, typeof(Bind<,,>));
+            }
+        }
+
         public bool IsValue
         {
             get
             {
                 var type = Fetch.GetType();
                 return RunSplits.IsGenericTypeOf(type, typeof(FetchResult<>));
+            }
+        }
+        public bool IsRequest
+        {
+            get
+            {
+                var type = Fetch.GetType();
+                return RunSplits.IsGenericTypeOf(type, typeof(Request<>));
             }
         }
         public CompiledFetch(object fetch, string bindTo)
@@ -46,7 +75,7 @@ namespace HaxlSharp
             var type = result.GetType();
             if (IsGenericTypeOf(type, typeof(FetchResult<>)))
             {
-                return ((dynamic)result).Val;
+                return ((HoldsObject)result).Value;
             }
             return result;
         }
@@ -85,11 +114,21 @@ namespace HaxlSharp
                 var result = await fetcher.Fetch(new GenericRequest(request.request, request.request.GetType(), ""));
                 return (A)result.Value;
             }
+            if (IsGenericTypeOf(splits.Expression.GetType(), typeof(Select<,>)))
+            {
+                var select = splits.Expression as Fetchable;
+                return await Task.Factory.StartNew<A>(() => (A)select.RunFetch(fetcher));
+            }
+            if (IsGenericTypeOf(splits.Expression.GetType(), typeof(RequestSequence<,>)))
+            {
+                dynamic sequence = splits.Expression;
+                return await Task.Factory.StartNew<A>(() => sequence.FetchSequence(fetcher));
+            }
 
             var rebindTransparent = new RebindTransparent();
             var boundVariables = new Dictionary<string, object>();
             A final = default(A);
-            int i = 1;
+            int batchNumber = 1;
             foreach (var segment in splits.Segments)
             {
                 if (segment.IsProjectGroup)
@@ -106,7 +145,8 @@ namespace HaxlSharp
                 }
                 if (!segment.Expressions.Any()) continue;
 
-                Debug.WriteLine($"=== Batch {i++} ===");
+                Debug.WriteLine($"=== Batch {batchNumber++} ===");
+
                 var compiledFetches = segment.Expressions.Select(exp =>
                 {
                     var bindTo = splits.NameQueue.Dequeue();
@@ -116,7 +156,7 @@ namespace HaxlSharp
                 }).ToList();
 
                 var segmentRequests = compiledFetches
-                    .Where(c => !c.IsSequence && !c.IsValue)
+                    .Where(c => c.IsRequest)
                     .Select(c => CreateGenericRequest(c.Fetch, c.BindName));
 
                 var sequenceRequests = compiledFetches.Where(c => c.IsSequence).Select(c =>
@@ -133,14 +173,38 @@ namespace HaxlSharp
                 var resulted = compiledFetches.Where(c => c.IsValue);
                 foreach (var result in resulted)
                 {
-                    var value = ((dynamic)result.Fetch).Val;
-                    boundVariables[result.BindName] = value;
+                    var fetch = (HoldsObject)result.Fetch;
+                    boundVariables[result.BindName] = fetch.Value;
                 }
 
+                var selected = compiledFetches.Where(c => c.IsSelect).Select(c =>
+                {
+                    return Task.Factory.StartNew(() =>
+                    {
+                        var canFetch = c.Fetch is Fetchable;
+                        var select = c.Fetch as Fetchable;
+                        var result = select.RunFetch(fetcher);
+                        boundVariables[c.BindName] = result;
+                        Debug.WriteLine($"Fetched {c.BindName}: {result}");
+                    });
+                }).ToArray();
 
-                var results = await fetcher.FetchBatch(segmentRequests);
-                await Task.WhenAll(sequenceRequests);
-                StoreResults(results, boundVariables);
+                var requests = compiledFetches.Where(c => c.IsBind).Select(c =>
+                {
+                    return Task.Factory.StartNew(() =>
+                    {
+                        dynamic bind = c.Fetch;
+                        var result = bind.RunFetch(fetcher);
+                        boundVariables[c.BindName] = result;
+                    });
+                });
+
+                var results = fetcher.FetchBatch(segmentRequests);
+                var sequenceTask = Task.WhenAll(sequenceRequests);
+                var selectTask = Task.WhenAll(selected);
+                var requestTask = Task.WhenAll(requests);
+                await Task.WhenAll(sequenceTask, selectTask, results, requestTask);
+                StoreResults(results.Result, boundVariables);
                 Debug.WriteLine("");
             }
             var finalProject = rebindTransparent.Rewrite(splits.FinalProject);

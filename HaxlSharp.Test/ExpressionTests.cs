@@ -162,15 +162,16 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public void LetTest()
+        public async Task LetTest()
         {
             var expression = from x in a
                              let q = x + 3
-                             from z in c(x)
-                             from y in c(x + 3)
+                             from z in c(q)
+                             from y in c(q + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            var result = await split.FetchSplit();
+            Assert.AreEqual(15, result);
         }
 
         [TestMethod]
@@ -189,7 +190,7 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public void SequenceRewrite()
+        public async Task SequenceRewrite()
         {
             var list = Enumerable.Range(0, 10);
             Func<int, FetchResult<int>> mult10 = x => new FetchResult<int>(x * 10);
@@ -199,7 +200,9 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
+            var result = await split.FetchSplit();
         }
+
 
         [TestMethod]
         public async Task SequenceRewriteConcurrent()
@@ -227,8 +230,12 @@ namespace HaxlSharp.Test
         {
             var number = new FetchResult<int>(3);
             var plusOne = number.Select(num => num + 1);
+
+            var plusTwo = plusOne.Select(num => num + 1);
             var four = await plusOne.Fetch();
+            var five = await plusTwo.Fetch();
             Assert.AreEqual(4, four);
+            Assert.AreEqual(5, five);
         }
     }
 }

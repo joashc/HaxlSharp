@@ -34,7 +34,7 @@ namespace HaxlSharp.Test
         {
             var getAllPostsInfo =
                 from postIds in FetchAllPostIds()
-                from postInfo in postIds.SelectFetch(Blog.FetchPostInfo)
+                from postInfo in postIds.SelectFetch(Blog.GetPostDetails)
                 select postInfo;
             var split = Splitter.Split(getAllPostsInfo);
             var result = await RunSplits.Run(split, Fetcher());
@@ -54,6 +54,14 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
+        public async Task JustSequence()
+        {
+            var sequence = Enumerable.Range(0, 10).SelectFetch(Blog.FetchPostInfo);
+            var split = Splitter.Split(sequence);
+            var result = await RunSplits.Run(split, Fetcher());
+        }
+
+        [TestMethod]
         public async Task LetNotation_Applicative()
         {
             var id = 0;
@@ -69,9 +77,8 @@ namespace HaxlSharp.Test
         public async Task TwoLatestExample()
         {
             var fetch = from latest in FetchTwoLatestPosts()
-                        from first in FetchPostInfo(latest.Item1)
-                        from second in FetchPostInfo(latest.Item2)
-                        from third in FetchPostInfo(2)
+                        from first in GetPostDetails(latest.Item1)
+                        from second in GetPostDetails(latest.Item2)
                         select first;
             var result = await BlogFetch(fetch);
         }

@@ -13,12 +13,20 @@ namespace HaxlSharp
         LambdaExpression Initial { get; }
     }
 
+    public interface FetchVisitor<C, X>
+    {
+        X Bind<A, B>(IEnumerable<BindProjectPair> expressions, Fetch<A> fetch);
+        X Request(Returns<C> request, Type requestType);
+        X RequestSequence<B>(IEnumerable<B> list, Func<B, Fetch<C>> bind);
+    }
+
+
     public class Bind<A, B, C> : Fetch<C>
     {
         public Bind(IEnumerable<BindProjectPair> binds, Fetch<A> expr)
         {
             _binds = binds;
-            Expr = expr;
+            Fetch = expr;
         }
 
         private readonly IEnumerable<BindProjectPair> _binds;
@@ -26,10 +34,16 @@ namespace HaxlSharp
 
         public LambdaExpression Initial
         {
-            get { return Expr.Initial; }
+            get { return Fetch.Initial; }
         }
 
-        public readonly Fetch<A> Expr;
+        public readonly Fetch<A> Fetch;
+
+        public C RunFetch(Fetcher fetch)
+        {
+            var split = Splitter.Split(this);
+            return RunSplits.Run(split, fetch).Result;
+        }
     }
 
     public class BindProjectPair
@@ -65,7 +79,7 @@ namespace HaxlSharp
         public LambdaExpression Initial { get { return Expression.Lambda(Expression.Constant(this)); } }
     }
 
-    public class Request<A> : FetchNode<A>, Fetch<A>
+    public class Request<A> : FetchNode<A>
     {
         public readonly Returns<A> request;
         public Request(Returns<A> request)
@@ -76,7 +90,7 @@ namespace HaxlSharp
         public Type RequestType { get { return request.GetType(); } }
     }
 
-    public class RequestSequence<A, B> : FetchNode<A>, Fetch<IEnumerable<B>>
+    public class RequestSequence<A, B> : FetchNode<IEnumerable<B>>
     {
         public readonly IEnumerable<A> List;
         public readonly Func<A, Fetch<B>> Bind;
@@ -99,23 +113,62 @@ namespace HaxlSharp
         }
     }
 
-    public class FetchResult<A> : FetchNode<A>, Fetch<A>
+    public class Select<A, B> : FetchNode<B>, Fetchable
     {
-        public readonly A Val;
+        public readonly Fetch<A> Fetch;
+        public readonly Expression<Func<A, B>> Map;
+        public Select(Fetch<A> fetch, Expression<Func<A, B>> map)
+        {
+            Fetch = fetch;
+            Map = map;
+        }
+
+        public LambdaExpression MapExpression
+        {
+            get { return Map; }
+        }
+
+        public object RunFetch(Fetcher fetcher)
+        {
+            var split = Splitter.Split(Fetch);
+            return RunSplits.Run(split, fetcher).Result;
+        }
+    }
+
+    public interface Fetchable
+    {
+        object RunFetch(Fetcher fetcher);
+        LambdaExpression MapExpression { get; }
+    }
+
+    public class FetchResult<A> : FetchNode<A>, HoldsObject
+    {
+        public A Val;
+
+        public object Value
+        {
+            get
+            {
+                return Val;
+            }
+        }
+
         public FetchResult(A val)
         {
             Val = val;
         }
     }
 
+    public interface HoldsObject
+    {
+        object Value { get; }
+    }
+
     public static class ExprExt
     {
-        public static Fetch<B> Select<A, B>(this Fetch<A> self, Func<A, B> f)
+        public static Fetch<B> Select<A, B>(this Fetch<A> self, Expression<Func<A, B>> f)
         {
-            Expression<Func<A, Fetch<B>>> bind = a => new FetchResult<B>(f(a));
-            Expression<Func<A, B, B>> project = (a, b) => b;
-            var newBinds = new BindProjectPair(bind, project);
-            return new Bind<A, B, B>(self.CollectedExpressions.Append(newBinds), self);
+            return new Select<A, B>(self, f);
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind, Expression<Func<A, B, C>> project)

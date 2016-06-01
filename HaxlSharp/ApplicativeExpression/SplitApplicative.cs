@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace HaxlSharp
@@ -106,7 +107,7 @@ namespace HaxlSharp
 
         public static bool IsIdentity<A>(Fetch<A> expression)
         {
-            return expression is Request<A> || expression is FetchResult<A>;
+            return expression is Request<A> || expression is FetchResult<A> || RunSplits.IsGenericTypeOf(expression.GetType(), typeof(RequestSequence<,>)) || RunSplits.IsGenericTypeOf(expression.GetType(), typeof(Select<,>));
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)

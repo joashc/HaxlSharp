@@ -31,7 +31,6 @@ namespace HaxlSharp
 
         public async Task<Result> Fetch(GenericRequest request)
         {
-            await Task.Delay(50);
             ThrowIfUnhandled(request);
             if (_fetchFunctions.ContainsKey(request.RequestType))
             {
