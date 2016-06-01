@@ -60,7 +60,7 @@ namespace HaxlSharp.Test
 
                 .FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
                 {
-                    return Enumerable.Range(0, 10);
+                    return Enumerable.Range(0, 30);
                 })
 
                 .FetchRequest<FetchPostInfo, PostInfo>(req =>

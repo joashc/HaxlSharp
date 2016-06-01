@@ -30,23 +30,24 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public async Task ExpressionTest()
+        public async Task DuplicateVariableNames()
         {
-            var nested =     from x in new FetchResult<string>("1")      // Group 0.1
-                             // split                                 // =========
-                             from za in c(int.Parse(x))                          // Group 1.1
-                             from ya in b                             // Group 1.2
-                             //projection                             // =========
-                             select ya;                     // Group 2.1 (Projection)
+            // We've got two variables of different type named 'x'.
 
-            var expression = from x in nested                         // 
-                             // split                                 // =========
-                             from z in c(x)                           // Group 3.1
-                             from y in b                              // Group 3.2
-                             // split                                 // =========
-                             from w in d(y)                           // Group 4.1
-                             // projection                            // =========
-                             select x + y + z + w;                    // Final Projection
+            var nested =     from x in new FetchResult<string>("1")         // Group 0.1
+                             // split                                       // =========
+                             from za in c(int.Parse(x))                     // Group 1.1
+                             from ya in b                                   // Group 1.2
+                             //projection                                   // =========
+                             select ya;                                     // Group 2.1 (Projection)
+            var expression = from x in nested                               // 
+                             // split                                 		// =========
+                             from z in c(x)                           		// Group 3.1
+                             from y in b                              		// Group 3.2
+                             // split                                 		// =========
+                             from w in d(y)                           		// Group 4.1
+                             // projection                            		// =========
+                             select x + y + z + w;                    		// Final Projection
 
             var split = Splitter.Split(expression);
             var result = await split.FetchSplit();
@@ -60,7 +61,7 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
-        public async Task ExpressionTestDuplicate()
+        public async Task ExpressionTest()
         {
             var nested =     from xa in new FetchResult<int>(66)      // Group 0.1
                              // split                                 // =========
@@ -169,13 +170,13 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(3, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
         }
 
         [TestMethod]
-        public async Task ConcurrentRewrite()
+        public async Task NestedQuery()
         {
-            var expression = from x in a
+            var expression = from x in (from x in a select x + 1) 
                              from y in b
                                  //split
                              from z in c(x)
@@ -184,7 +185,7 @@ namespace HaxlSharp.Test
             var split = Splitter.Split(expression);
 
             var result = await split.FetchSplit();
-            Assert.AreEqual(10, result);
+            Assert.AreEqual(12, result);
         }
 
         [TestMethod]
@@ -198,7 +199,6 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
-            ;
         }
 
         [TestMethod]
@@ -213,7 +213,6 @@ namespace HaxlSharp.Test
 
             var split = Splitter.Split(expression);
             var result = await split.FetchSplit();
-            ;
         }
 
         [TestMethod]

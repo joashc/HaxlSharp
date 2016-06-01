@@ -35,10 +35,33 @@ namespace HaxlSharp
             {
                 var memberType = DetectApplicative.GetTransMemberType(node);
                 var memberName = node.Member.Name;
-                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{memberName}"));
-                return Expression.Convert(result, memberType);
+                return RewritePropertyAccess(node);
             }
             return base.VisitMember(node);
+        }
+
+        private Expression RewritePropertyAccess(MemberExpression node)
+        {
+            Expression current = node;
+            var expressionStack = new Stack<Expression>();
+            while (current.NodeType == ExpressionType.MemberAccess)
+            {
+                var memberAccess = ((MemberExpression)current);
+                if (!memberAccess.Member.Name.StartsWith("<>h__Trans")) expressionStack.Push(current);
+                current = memberAccess.Expression;
+            }
+
+            var property = (MemberExpression) expressionStack.Pop();
+            var propertyName = property.Member.Name;
+            var dictionaryAccessor = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{propertyName}"));
+            Expression rewritten = Expression.Convert(dictionaryAccessor, property.Type);
+
+            while (expressionStack.Any())
+            {
+                var top = expressionStack.Pop();
+                rewritten = Expression.MakeMemberAccess(rewritten, ((MemberExpression)top).Member);
+            }
+            return rewritten;
         }
 
         protected override Expression VisitParameter(ParameterExpression node)

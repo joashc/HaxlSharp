@@ -29,16 +29,17 @@ namespace HaxlSharp
                 throw new ApplicationException($"No handler for request type '{request.RequestType}' found.");
         }
 
-        public Task<Result> Fetch(GenericRequest request)
+        public async Task<Result> Fetch(GenericRequest request)
         {
+            await Task.Delay(50);
             ThrowIfUnhandled(request);
             if (_fetchFunctions.ContainsKey(request.RequestType))
             {
                 var handler = _fetchFunctions[request.RequestType];
-                return Task.Factory.StartNew(() => handler(request));
+                return await Task.Factory.StartNew(() => handler(request));
             }
             var asyncHandler = _asyncFetchFunctions[request.RequestType];
-            return asyncHandler(request);
+            return await asyncHandler(request);
         }
 
         public async Task<IEnumerable<Result>> FetchBatch(IEnumerable<GenericRequest> requests)

@@ -79,9 +79,9 @@ namespace HaxlSharp
             {
                 var split = ShouldSplit(expr, currentSegment.BoundVariables, seenParameters);
                 currentSegment.BoundVariables.AddRange(expr.BindVariables.ParameterNames);
-                var hasProject = expr.ProjectVariables.Free.Any(f => !boundParams.Contains(f.Name));
+                var hasProject = expr.ProjectVariables.ParameterNames.Any(f => !boundParams.Contains(f));
                 if (hasProject) {
-                    currentSegment.BoundVariables.AddRange(expr.ProjectVariables.Free.Select(f => f.Name));
+                    currentSegment.BoundVariables.AddRange(expr.ProjectVariables.ParameterNames);
                     seenParameters.Clear();
                 }
 
