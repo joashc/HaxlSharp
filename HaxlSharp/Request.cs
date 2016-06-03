@@ -42,8 +42,8 @@ namespace HaxlSharp
 
     public class ProjectResult : FetchResult
     {
-        public readonly Action<Dictionary<string, object>> PutResult;
-        public ProjectResult(Action<Dictionary<string, object>> putResult)
+        public readonly Action<Scope> PutResult;
+        public ProjectResult(Action<Scope> putResult)
         {
             PutResult = putResult;
         }

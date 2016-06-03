@@ -11,14 +11,14 @@ namespace HaxlSharp
     {
         IEnumerable<BindProjectPair> CollectedExpressions { get; }
         LambdaExpression Initial { get; }
-        SplitFetch<A> Split(FetchSplitter<A> splitter);
+        SplitFetch<A> Split();
         Task<A> FetchWith(Fetcher fetcher, int nestLevel = 0);
     }
 
     public interface SplitFetch<A>
     {
         X Run<X>(SplitHandler<A, X> handler);
-        IEnumerable<FetchResult> CollectRequests(string bindTo);
+        BlockedRequestList CollectRequests(string bindTo);
     }
 
     public interface SplitHandler<A, X>
@@ -54,14 +54,15 @@ namespace HaxlSharp
 
         public readonly Fetch<A> Fetch;
 
-        public SplitFetch<C> Split(FetchSplitter<C> splitter)
+        public SplitFetch<C> Split()
         {
+            var splitter = new Splitta<C>();
             return splitter.Bind<A, B>(this);
         }
 
         public Task<C> FetchWith(Fetcher fetcher, int nestLevel)
         {
-            var split = Split(new Splitta<C>());
+            var split = Split();
             var runner = new SplitRunner<C>(fetcher, nestLevel);
             return split.Run(runner);
         }
@@ -101,19 +102,20 @@ namespace HaxlSharp
 
         public abstract X Run<X>(SplitHandler<A, X> handler);
 
-        public SplitFetch<A> Split(FetchSplitter<A> splitter)
+        public SplitFetch<A> Split()
         {
+            var splitter = new Splitta<A>();
             return splitter.Pass(this);
         }
 
         public Task<A> FetchWith(Fetcher fetcher, int nestLevel)
         {
-            var split = Split(new Splitta<A>());
+            var split = Split();
             var runner = new SplitRunner<A>(fetcher, nestLevel);
             return split.Run(runner);
         }
 
-        public IEnumerable<FetchResult> CollectRequests(string bindTo)
+        public BlockedRequestList CollectRequests(string bindTo)
         {
             return Run(new RequestCollector<A>(bindTo));
         }
@@ -220,11 +222,6 @@ namespace HaxlSharp
         public static Fetch<IEnumerable<B>> SelectFetch<A, B>(this IEnumerable<A> list, Func<A, Fetch<B>> bind)
         {
             return new RequestSequence<A, B>(list, bind);
-        }
-
-        public static SplitFetch<A> Split<A>(this Fetch<A> expr)
-        {
-            return expr.Split(new Splitta<A>());
         }
 
     }

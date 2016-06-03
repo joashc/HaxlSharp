@@ -11,22 +11,23 @@ namespace HaxlSharp
     public class RebindTransparent : ExpressionVisitor
     {
         private List<string> paramNames;
-        private ParameterExpression boundVariablesParameter;
+        private ParameterExpression scopeParam;
         public int BlockCount { get; set; }
+        private MethodInfo GetValue = typeof(Scope).GetMethod("GetValue");
 
         public LambdaExpression Rewrite(LambdaExpression lambda)
         {
             paramNames = lambda.Parameters.Select(p => p.Name).Where(n => !n.StartsWith("<>h__Trans")).ToList();
-            boundVariablesParameter = Expression.Parameter(typeof(Dictionary<string, object>), "boundVars");
-            var newExpression = 
+            scopeParam = Expression.Parameter(typeof(Scope), "scope");
+            var newExpression =
                 Expression.Lambda(
-                    lambda.Body, 
+                    lambda.Body,
                     new ParameterExpression[]
                     {
-                        boundVariablesParameter
+                        scopeParam
                     }
                );
-            return (LambdaExpression) base.Visit(newExpression);
+            return (LambdaExpression)base.Visit(newExpression);
         }
 
         protected override Expression VisitMember(MemberExpression node)
@@ -51,10 +52,11 @@ namespace HaxlSharp
                 current = memberAccess.Expression;
             }
 
-            var property = (MemberExpression) expressionStack.Pop();
+            var property = (MemberExpression)expressionStack.Pop();
             var propertyName = property.Member.Name;
-            var dictionaryAccessor = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{propertyName}"));
-            Expression rewritten = Expression.Convert(dictionaryAccessor, property.Type);
+
+            var value = Expression.Call(scopeParam, GetValue, Expression.Constant($"{BlockCount}{propertyName}")); 
+            Expression rewritten = Expression.Convert(value, property.Type);
 
             while (expressionStack.Any())
             {
@@ -70,8 +72,8 @@ namespace HaxlSharp
             {
                 var memberType = node.Type;
                 var memberName = node.Name;
-                var result = Expression.Property(boundVariablesParameter, "Item", Expression.Constant($"{BlockCount}{memberName}"));
-                return Expression.Convert(result, memberType);
+                var value = Expression.Call(scopeParam, GetValue, Expression.Constant($"{BlockCount}{memberName}"));
+                return Expression.Convert(value, memberType);
             }
             return node;
         }

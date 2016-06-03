@@ -46,6 +46,8 @@ namespace HaxlSharp.Test
                 from postInfo in postIds.SelectFetch(Blog.FetchPostInfo)
                 from firstPostInfo in FetchPostInfo(postIds.First())
                 select firstPostInfo;
+            var split = fetch.Split();
+            var collected = split.CollectRequests("sometning");
             var result = await fetch.FetchWith(Fetcher());
         }
 

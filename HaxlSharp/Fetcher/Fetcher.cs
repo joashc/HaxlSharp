@@ -33,7 +33,6 @@ namespace HaxlSharp
 
         public async Task<Result> Fetch(BlockedRequest request)
         {
-            await Task.Delay(1000);
             ThrowIfUnhandled(request);
             if (_fetchFunctions.ContainsKey(request.RequestType))
             {

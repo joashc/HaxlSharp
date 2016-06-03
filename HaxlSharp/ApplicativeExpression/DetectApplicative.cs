@@ -37,7 +37,7 @@ namespace HaxlSharp
         /// <summary>
         /// Checks if a given monadic bind can be expressed as an applicative functor.
         /// </summary>
-        public static ApplicativeInfo CheckApplicative<A, B>(Expression<Func<A, Fetch<B>>> bind, Dictionary<string, object> previouslyBound)
+        public static ApplicativeInfo CheckApplicative<A, B>(Expression<Func<A, Fetch<B>>> bind, Scope scope)
         {
             var visitor = new ExpressionVarVisitor();
             visitor.Visit(bind);
@@ -48,12 +48,12 @@ namespace HaxlSharp
             var newFrees = frees.Concat(transparents);
             var boundVariables = visitor.Arguments.Select(m => m.Member.Name);
 
-            var freeWithoutPrevious = newFrees.Where(v => !previouslyBound.Keys.Contains(v));
+            var freeWithoutPrevious = newFrees.Where(v => !scope.InScope(v));
 
             var isApplicative = boundVariables.All(bound => !freeWithoutPrevious.Contains(bound))
                 && freeWithoutPrevious.Distinct().Count() == freeWithoutPrevious.Count();
 
-            return new ApplicativeInfo(isApplicative, freeWithoutPrevious.Concat(previouslyBound.Keys), freeWithoutPrevious.First());
+            return new ApplicativeInfo(isApplicative, freeWithoutPrevious.Concat(scope.Keys), freeWithoutPrevious.First());
         }
 
         public static Variables GetExpressionVariables(LambdaExpression bind)

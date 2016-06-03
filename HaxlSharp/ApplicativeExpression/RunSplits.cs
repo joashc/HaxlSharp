@@ -35,7 +35,7 @@ namespace HaxlSharp
             var tasks = list.Select(b =>
             {
                 var fetch = bind(b);
-                var split = fetch.Split(new Splitta<Item>());
+                var split = fetch.Split();
                 return split.Run(new SplitRunner<Item>(fetcher, nestLevel + 1));
             });
             var results = await Task.WhenAll(tasks);
@@ -49,13 +49,13 @@ namespace HaxlSharp
 
         public async Task<A> Select<B>(Fetch<B> fetch, Expression<Func<B, A>> fmap)
         {
-            var split = fetch.Split(new Splitta<B>());
+            var split = fetch.Split();
             var result = await split.Run(new SplitRunner<B>(fetcher, nestLevel + 1));
             return fmap.Compile()(result);
         }
     }
 
-    public class RequestCollector<A> : SplitHandler<A, IEnumerable<FetchResult>>
+    public class RequestCollector<A> : SplitHandler<A, BlockedRequestList>
     {
         public readonly string bindTo;
         public RequestCollector(string bindTo)
@@ -63,37 +63,65 @@ namespace HaxlSharp
             this.bindTo = bindTo;
         }
 
-        public IEnumerable<FetchResult> Bind(SplitBind<A> splits)
+        public BlockedRequestList Bind(SplitBind<A> splits)
         {
             return RunSplits.GetRequests(splits);
         }
 
-        public IEnumerable<FetchResult> Request(Returns<A> request, Type requestType)
+        public BlockedRequestList Request(Returns<A> request, Type requestType)
         {
-            return new List<FetchResult> { new BlockedRequest(request, requestType, bindTo) };
+            var blocked = new List<FetchResult> { new BlockedRequest(request, requestType, bindTo) };
+            return new BlockedRequestList(blocked, new List<ApplicativeGroup>());
         }
 
-        public IEnumerable<FetchResult> RequestSequence<B, Item>(IEnumerable<B> list, Func<B, Fetch<Item>> bind)
+        public BlockedRequestList RequestSequence<B, Item>(IEnumerable<B> list, Func<B, Fetch<Item>> bind)
         {
-            return list.SelectMany(b =>
+            var blocked = list.Select(b =>
             {
                 var fetch = bind(b);
                 var split = fetch.Split();
                 return split.CollectRequests("");
             });
+            return blocked.Aggregate(BlockedRequestList.Empty(), (acc, br) => new BlockedRequestList(acc.Blocked.Concat(br.Blocked), acc.Remaining.Concat(acc.Remaining)));
         }
 
-        public IEnumerable<FetchResult> Result(A result)
+        public BlockedRequestList Result(A result)
         {
-            return new List<FetchResult> { new ProjectResult(dic => { dic[bindTo] = result; }) };
+            var blocked = new List<FetchResult> { new ProjectResult(scope => { scope.Add(bindTo, result); }) };
+            return new BlockedRequestList(blocked, new List<ApplicativeGroup>());
+
         }
 
-        public IEnumerable<FetchResult> Select<B>(Fetch<B> fetch, Expression<Func<B, A>> fmap)
+        public BlockedRequestList Select<B>(Fetch<B> fetch, Expression<Func<B, A>> fmap)
         {
             var split = fetch.Split();
             var requests = split.CollectRequests(bindTo);
             var compiled = fmap.Compile();
-            return new List<FetchResult> { new ProjectResult(dic => { dic[bindTo] = compiled((B)dic[bindTo]); }) };
+            var blocked = new List<FetchResult> { new ProjectResult(scope => { scope.Add(bindTo, compiled((B)scope.GetValue(bindTo))); }) };
+            return new BlockedRequestList(blocked, new List<ApplicativeGroup>());
+        }
+    }
+
+    public class BlockedRequestList
+    {
+        public BlockedRequestList(IEnumerable<FetchResult> blocked, IEnumerable<ApplicativeGroup> remaining)
+        {
+            Blocked = blocked;
+            Remaining = remaining;
+            //NameQueue = nameQueue;
+            //FinalProject = finalProject;
+            //Rebinder = rebinder;
+        }
+
+        public readonly IEnumerable<FetchResult> Blocked;
+        public readonly IEnumerable<ApplicativeGroup> Remaining;
+        public readonly Queue<string> NameQueue;
+        public readonly LambdaExpression FinalProject;
+        public readonly RebindTransparent Rebinder;
+
+        public static BlockedRequestList Empty()
+        {
+            return new BlockedRequestList(new List<FetchResult>(), new List<ApplicativeGroup>());
         }
     }
 
@@ -142,53 +170,42 @@ namespace HaxlSharp
         //}
 
 
-        public static IEnumerable<BlockedRequest> GetRequests<A>(ApplicativeGroup segment, Queue<string> nameQueue, Dictionary<object, string> boundVariables)
+        public static BlockedRequestList GetRequests<A>(SplitBind<A> splits)
         {
-            if (segment.IsProjectGroup) return new List<BlockedRequest>();
+            if (!splits.Segments.Any()) return BlockedRequestList.Empty();
             var rebindTransparent = new RebindTransparent();
-            return segment.Expressions.SelectMany(exp =>
-            {
-                var bindTo = nameQueue.Dequeue();
-                var rewritten = rebindTransparent.Rewrite(exp);
-                dynamic request = rewritten.Compile().DynamicInvoke(boundVariables);
-                var split = request.Split();
-                return (IEnumerable<BlockedRequest>)split.CollectRequests(bindTo);
-            });
-        }
-
-        public static IEnumerable<FetchResult> GetRequests<A>(SplitBind<A> splits)
-        {
-            var rebindTransparent = new RebindTransparent();
-            var boundVariables = new Dictionary<string, object>();
+            var scope = new Scope();
             var list = new List<FetchResult>();
-            foreach (var segment in splits.Segments)
+
+            var segment = splits.Segments.First();
+            var rest = splits.Segments.Skip(1);
+            if (segment.IsProjectGroup)
             {
-                if (segment.IsProjectGroup)
+                var project = segment.Expressions.First();
+                var rewritten = rebindTransparent.Rewrite(project);
+                var bindTo = splits.NameQueue.Dequeue();
+                Action<Scope> projectResult = boundVars =>
                 {
-                    var project = segment.Expressions.First();
-                    var rewritten = rebindTransparent.Rewrite(project);
-                    var bindTo = splits.NameQueue.Dequeue();
-                    Action<Dictionary<string, object>> projectResult = boundVars =>
-                    {
-                        var wrapped = rewritten.Compile().DynamicInvoke(boundVars);
-                        var result = Unwrap(wrapped);
-                        boundVars[bindTo] = result;
-                    };
-                    list.Add(new ProjectResult(projectResult));
-                    rebindTransparent.BlockCount++;
-                    continue;
-                }
-                var blocked = segment.Expressions.SelectMany(exp =>
-                {
-                    var bindTo = splits.NameQueue.Dequeue();
-                    var rewritten = rebindTransparent.Rewrite(exp);
-                    dynamic request = rewritten.Compile().DynamicInvoke(boundVariables);
-                    var split = request.Split();
-                    return (IEnumerable<BlockedRequest>)split.CollectRequests(bindTo);
-                });
-                list.AddRange(blocked);
+                    var wrapped = rewritten.Compile().DynamicInvoke(boundVars);
+                    var result = Unwrap(wrapped);
+                    boundVars.Add(bindTo, result);
+                };
+                rebindTransparent.BlockCount++;
+                return new BlockedRequestList(new List<FetchResult> { new ProjectResult(projectResult) }, rest);
             }
-            return list;
+            var blocked = segment.Expressions.Select(exp =>
+            {
+                var bindTo = splits.NameQueue.Dequeue();
+                var rewritten = rebindTransparent.Rewrite(exp);
+                dynamic request = rewritten.Compile().DynamicInvoke(scope);
+                var split = request.Split();
+                return (BlockedRequestList) split.CollectRequests(bindTo);
+            }).ToList();
+
+            var collected = blocked.Aggregate(BlockedRequestList.Empty(), (acc, br) =>
+                new BlockedRequestList(acc.Blocked.Concat(br.Blocked), acc.Remaining.Concat(br.Remaining))
+            );
+            return collected;
         }
 
         public static async Task<A> Run<A>(SplitBind<A> splits, Fetcher fetcher, int nestLevel)
@@ -196,7 +213,7 @@ namespace HaxlSharp
             var spacing = String.Empty.PadLeft(nestLevel * 4);
             Action<string> log = str => Debug.WriteLine($"{spacing}{str}");
             var rebindTransparent = new RebindTransparent();
-            var boundVariables = new Dictionary<string, object>();
+            var scope = new Scope();
             A final = default(A);
             int batchNumber = 1;
             foreach (var segment in splits.Segments)
@@ -206,10 +223,10 @@ namespace HaxlSharp
                     var project = segment.Expressions.First();
                     var rewritten = rebindTransparent.Rewrite(project);
                     var bindTo = splits.NameQueue.Dequeue();
-                    var wrapped = rewritten.Compile().DynamicInvoke(boundVariables);
+                    var wrapped = rewritten.Compile().DynamicInvoke(scope);
                     var result = Unwrap(wrapped);
                     log($"Projected '{bindTo}': {result}\n");
-                    boundVariables[bindTo] = result;
+                    scope.Add(bindTo, result);
                     rebindTransparent.BlockCount++;
                     continue;
                 }
@@ -222,9 +239,9 @@ namespace HaxlSharp
                 {
                     var bindTo = splits.NameQueue.Dequeue();
                     var rewritten = rebindTransparent.Rewrite(exp);
-                    dynamic request = rewritten.Compile().DynamicInvoke(boundVariables);
+                    dynamic request = rewritten.Compile().DynamicInvoke(scope);
                     var result = await request.FetchWith(fetcher, nestLevel + 1);
-                    boundVariables[bindTo] = result;
+                    scope.Add(bindTo, result);
                     log($"Fetched '{bindTo}': {result}");
                 }).ToList();
 
@@ -232,7 +249,7 @@ namespace HaxlSharp
                 log("");
             }
             var finalProject = rebindTransparent.Rewrite(splits.FinalProject);
-            final = (A)finalProject.Compile().DynamicInvoke(boundVariables);
+            final = (A)finalProject.Compile().DynamicInvoke(scope);
 
             log($"Result: {final}");
             return final;

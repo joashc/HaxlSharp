@@ -53,7 +53,7 @@ namespace HaxlSharp
             return handler.Bind(this);
         }
 
-        public IEnumerable<FetchResult> CollectRequests(string bindTo)
+        public BlockedRequestList CollectRequests(string bindTo)
         {
             return Run(new RequestCollector<A>(bindTo));
         }
