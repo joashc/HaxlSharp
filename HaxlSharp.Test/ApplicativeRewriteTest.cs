@@ -24,9 +24,7 @@ namespace HaxlSharp.Test
             var firstPostInfo = from postIds in FetchAllPostIds()
                                 from firstInfo in FetchPostInfo(postIds.First())
                                 select firstInfo;
-            var split = Splitter.Split(firstPostInfo);
-
-            var result = await RunSplits.Run(split, Fetcher());
+            var result = await firstPostInfo.FetchWith(Fetcher());
         }
 
         [TestMethod]
@@ -36,8 +34,7 @@ namespace HaxlSharp.Test
                 from postIds in FetchAllPostIds()
                 from postInfo in postIds.SelectFetch(Blog.GetPostDetails)
                 select postInfo;
-            var split = Splitter.Split(getAllPostsInfo);
-            var result = await RunSplits.Run(split, Fetcher());
+            var result = await getAllPostsInfo.FetchWith(Fetcher());
         }
 
 
@@ -49,16 +46,14 @@ namespace HaxlSharp.Test
                 from postInfo in postIds.SelectFetch(Blog.FetchPostInfo)
                 from firstPostInfo in FetchPostInfo(postIds.First())
                 select firstPostInfo;
-            var split = Splitter.Split(fetch);
-            var result = await RunSplits.Run(split, Fetcher());
+            var result = await fetch.FetchWith(Fetcher());
         }
 
         [TestMethod]
         public async Task JustSequence()
         {
             var sequence = Enumerable.Range(0, 10).SelectFetch(Blog.FetchPostInfo);
-            var split = Splitter.Split(sequence);
-            var result = await RunSplits.Run(split, Fetcher());
+            var result = await sequence.FetchWith(Fetcher());
         }
 
         [TestMethod]
@@ -70,7 +65,7 @@ namespace HaxlSharp.Test
                         from postInfo2 in FetchPostInfo(id2)
                         select postInfo2;
 
-            var result = await BlogFetch(fetch);
+            var result = await fetch.FetchWith(Fetcher());
         }
 
         [TestMethod]
@@ -80,7 +75,7 @@ namespace HaxlSharp.Test
                         from first in GetPostDetails(latest.Item1)
                         from second in GetPostDetails(latest.Item2)
                         select new List<PostDetails> { first, second };
-            var result = await BlogFetch(fetch);
+            var result = await fetch.FetchWith(Fetcher());
         }
 
         [TestMethod]
@@ -90,14 +85,14 @@ namespace HaxlSharp.Test
                         from first in GetPostDetails(latest.Item1 + 1)
                         from second in GetPostDetails(latest.Item2 + 2)
                         select new List<PostDetails> { first, second };
-            var result = await BlogFetch(fetch);
+            var result = await fetch.FetchWith(Fetcher());
         }
 
         [TestMethod]
         public async Task FetchDetails()
         {
             var fetch = GetPostDetails(1);
-            var result = await BlogFetch(fetch);
+            var result = await fetch.FetchWith(Fetcher());
         }
 
         [TestMethod]
@@ -114,7 +109,7 @@ namespace HaxlSharp.Test
 
         private Task<A> BlogFetch<A>(Fetch<A> request)
         {
-            return RunSplits.Run(Splitter.Split(request), Fetcher());
+            return request.FetchWith(Fetcher());
         }
 
         [TestMethod]

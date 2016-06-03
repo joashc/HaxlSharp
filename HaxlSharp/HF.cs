@@ -11,15 +11,29 @@ namespace HaxlSharp
     {
         IEnumerable<BindProjectPair> CollectedExpressions { get; }
         LambdaExpression Initial { get; }
+        SplitFetch<A> Split(FetchSplitter<A> splitter);
+        Task<A> FetchWith(Fetcher fetcher);
     }
 
-    public interface FetchVisitor<C, X>
+    public interface SplitFetch<A>
     {
-        X Bind<A, B>(IEnumerable<BindProjectPair> expressions, Fetch<A> fetch);
-        X Request(Returns<C> request, Type requestType);
-        X RequestSequence<B>(IEnumerable<B> list, Func<B, Fetch<C>> bind);
+        X Run<X>(SplitHandler<A, X> handler);
     }
 
+    public interface SplitHandler<A, X>
+    {
+        X Bind(SplitBind<A> splits);
+        X Request(Returns<A> request, Type requestType);
+        X RequestSequence<B, Item>(IEnumerable<B> list, Func<B, Fetch<Item>> bind);
+        X Select<B>(Fetch<B> fetch, Expression<Func<B, A>> fmap);
+        X Result(A result);
+    }
+
+    public interface FetchSplitter<C>
+    {
+        SplitFetch<C> Bind<A, B>(Fetch<C> bind);
+        SplitFetch<C> Pass(Fetch<C> unsplittable);
+    }
 
     public class Bind<A, B, C> : Fetch<C>
     {
@@ -39,10 +53,16 @@ namespace HaxlSharp
 
         public readonly Fetch<A> Fetch;
 
-        public C RunFetch(Fetcher fetch)
+        public SplitFetch<C> Split(FetchSplitter<C> splitter)
         {
-            var split = Splitter.Split(this);
-            return RunSplits.Run(split, fetch).Result;
+            return splitter.Bind<A, B>(this);
+        }
+
+        public Task<C> FetchWith(Fetcher fetcher)
+        {
+            var split = Split(new Splitta<C>());
+            var runner = new SplitRunner<C>(fetcher);
+            return split.Run(runner);
         }
     }
 
@@ -72,11 +92,25 @@ namespace HaxlSharp
         public readonly bool IsProjectGroup;
     }
 
-    public abstract class FetchNode<A> : Fetch<A>
+    public abstract class FetchNode<A> : Fetch<A>, SplitFetch<A>
     {
         private static readonly IEnumerable<BindProjectPair> emptyList = new List<BindProjectPair>();
         public IEnumerable<BindProjectPair> CollectedExpressions { get { return emptyList; } }
         public LambdaExpression Initial { get { return Expression.Lambda(Expression.Constant(this)); } }
+
+        public abstract X Run<X>(SplitHandler<A, X> handler);
+
+        public SplitFetch<A> Split(FetchSplitter<A> splitter)
+        {
+            return splitter.Pass(this);
+        }
+
+        public Task<A> FetchWith(Fetcher fetcher)
+        {
+            var split = Split(new Splitta<A>());
+            var runner = new SplitRunner<A>(fetcher);
+            return split.Run(runner);
+        }
     }
 
     public class Request<A> : FetchNode<A>
@@ -88,6 +122,11 @@ namespace HaxlSharp
         }
 
         public Type RequestType { get { return request.GetType(); } }
+
+        public override X Run<X>(SplitHandler<A, X> handler)
+        {
+            return handler.Request(request, RequestType);
+        }
     }
 
     public class RequestSequence<A, B> : FetchNode<IEnumerable<B>>
@@ -100,20 +139,13 @@ namespace HaxlSharp
             Bind = bind;
         }
 
-        public IEnumerable<B> FetchSequence(Fetcher fetcher)
+        public override X Run<X>(SplitHandler<IEnumerable<B>, X> handler)
         {
-            var tasks = List.Select(a =>
-            {
-                var fetch = Bind(a);
-                var split = Splitter.Split(fetch);
-                return RunSplits.Run(split, fetcher);
-            }).ToArray();
-            Task.WaitAll(tasks);
-            return tasks.Select(t => t.Result).ToList();
+            return handler.RequestSequence(List, Bind);
         }
     }
 
-    public class Select<A, B> : FetchNode<B>, Fetchable
+    public class Select<A, B> : FetchNode<B>
     {
         public readonly Fetch<A> Fetch;
         public readonly Expression<Func<A, B>> Map;
@@ -128,20 +160,13 @@ namespace HaxlSharp
             get { return Map; }
         }
 
-        public object RunFetch(Fetcher fetcher)
+        public override X Run<X>(SplitHandler<B, X> handler)
         {
-            var split = Splitter.Split(Fetch);
-            return RunSplits.Run(split, fetcher).Result;
+            return handler.Select(Fetch, Map);
         }
     }
 
-    public interface Fetchable
-    {
-        object RunFetch(Fetcher fetcher);
-        LambdaExpression MapExpression { get; }
-    }
-
-    public class FetchResult<A> : FetchNode<A>, HoldsObject
+    public class FetchResult<A> : FetchNode<A>
     {
         public A Val;
 
@@ -156,6 +181,11 @@ namespace HaxlSharp
         public FetchResult(A val)
         {
             Val = val;
+        }
+
+        public override X Run<X>(SplitHandler<A, X> handler)
+        {
+            return handler.Result(Val);
         }
     }
 
@@ -186,10 +216,9 @@ namespace HaxlSharp
             return new RequestSequence<A, B>(list, bind);
         }
 
-        public static Task<A> Fetch<A>(this Fetch<A> expr)
+        public static SplitFetch<A> Split<A>(this Fetch<A> expr)
         {
-            var split = Splitter.Split(expr);
-            return RunSplits.Run(split, new DefaultFetcher(new Dictionary<Type, Func<GenericRequest, Result>>(), new Dictionary<Type, Func<GenericRequest, Task<Result>>>()));
+            return expr.Split(new Splitta<A>());
         }
 
     }

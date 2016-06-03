@@ -24,9 +24,22 @@ namespace HaxlSharp.Test
         public static Func<int, FetchResult<int>> d = i => new FetchResult<int>(i);
         public static Nested nested = new Nested();
 
-        public static int CountAt<A>(SplitApplicatives<A> split, int i)
+        public static int CountAt<A>(SplitFetch<A> split, int i)
         {
-            return split.Segments.ElementAt(i).Expressions.Count();
+            if (split is SplitBind<A>) return ((SplitBind<A>) split).Segments.ElementAt(i).Expressions.Count();
+            return 0;
+        }
+
+        public static int SplitCount<A>(SplitFetch<A> split)
+        {
+            if (split is SplitBind<A>) return ((SplitBind<A>) split).Segments.Where(s => !s.IsProjectGroup).Count();
+            return 1;
+        }
+
+        public static int ProjectCount<A>(SplitFetch<A> split)
+        {
+            if (split is SplitBind<A>) return ((SplitBind<A>) split).Segments.Where(s => s.IsProjectGroup).Count();
+            return 1;
         }
 
         [TestMethod]
@@ -50,14 +63,14 @@ namespace HaxlSharp.Test
                              select x + y + z + w;                    		// Final Projection
 
             var split = Splitter.Split(expression);
-            var result = await split.FetchSplit();
-            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
-            Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
+            Assert.AreEqual(4, SplitCount(split));
+            Assert.AreEqual(1, ProjectCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
             Assert.AreEqual(1, CountAt(split, 2)); 
             Assert.AreEqual(2, CountAt(split, 3));
             Assert.AreEqual(1, CountAt(split, 4));
+            var result = await expression.FetchWith(Blog.Fetcher());
         }
 
         [TestMethod]
@@ -79,9 +92,9 @@ namespace HaxlSharp.Test
                              select x + y + z + w;                    // Final Projection
 
             var split = Splitter.Split(expression);
-            var result = await split.FetchSplit();
-            Assert.AreEqual(4, split.Segments.Where(s => !s.IsProjectGroup).Count());
-            Assert.AreEqual(1, split.Segments.Where(s => s.IsProjectGroup).Count());
+            var result = await expression.FetchWith(Blog.Fetcher());
+            Assert.AreEqual(4, SplitCount(split));
+            Assert.AreEqual(1, ProjectCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
             Assert.AreEqual(1, CountAt(split, 2)); 
@@ -98,7 +111,7 @@ namespace HaxlSharp.Test
                              from z in c2(x, y)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
         }
@@ -112,7 +125,7 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
         }
@@ -127,7 +140,7 @@ namespace HaxlSharp.Test
                              from z in c(nested.x)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
         }
@@ -141,7 +154,7 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
         }
@@ -155,7 +168,7 @@ namespace HaxlSharp.Test
                              from y in c(x + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            Assert.AreEqual(2, split.Segments.Where(s => !s.IsProjectGroup).Count());
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(2, CountAt(split, 0));
             Assert.AreEqual(1, CountAt(split, 1));
 
@@ -170,7 +183,7 @@ namespace HaxlSharp.Test
                              from y in c(q + 3)
                              select x + y + z;
             var split = Splitter.Split(expression);
-            var result = await split.FetchSplit();
+            var result = await expression.FetchWith(Blog.Fetcher());
             Assert.AreEqual(15, result);
         }
 
@@ -185,7 +198,7 @@ namespace HaxlSharp.Test
                              select x + y + z + w;
             var split = Splitter.Split(expression);
 
-            var result = await split.FetchSplit();
+            var result = await expression.FetchWith(Blog.Fetcher());
             Assert.AreEqual(12, result);
         }
 
@@ -200,7 +213,7 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
-            var result = await split.FetchSplit();
+            var result = await expression.FetchWith(Blog.Fetcher());
         }
 
 
@@ -215,7 +228,7 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Splitter.Split(expression);
-            var result = await split.FetchSplit();
+            var result = await expression.FetchWith(Blog.Fetcher());
         }
 
         [TestMethod]
@@ -232,8 +245,8 @@ namespace HaxlSharp.Test
             var plusOne = number.Select(num => num + 1);
 
             var plusTwo = plusOne.Select(num => num + 1);
-            var four = await plusOne.Fetch();
-            var five = await plusTwo.Fetch();
+            var four = await plusOne.FetchWith(Blog.Fetcher());
+            var five = await plusTwo.FetchWith(Blog.Fetcher());
             Assert.AreEqual(4, four);
             Assert.AreEqual(5, five);
         }

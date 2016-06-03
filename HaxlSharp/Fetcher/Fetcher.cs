@@ -52,8 +52,7 @@ namespace HaxlSharp
 
         public Task<A> Fetch<A>(Fetch<A> request)
         {
-            var split = Splitter.Split(request);
-            return RunSplits.Run(split, this);
+            return request.FetchWith(this);
         }
     }
 }

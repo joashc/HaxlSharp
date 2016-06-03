@@ -33,6 +33,27 @@ namespace HaxlSharp
 
     }
 
+    public class SplitBind<A> : SplitFetch<A>
+    {
+        public readonly Fetch<A> Expression;
+        public readonly IEnumerable<ApplicativeGroup> Segments;
+        public readonly Queue<string> NameQueue;
+        public readonly LambdaExpression FinalProject;
+
+        public SplitBind(Fetch<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
+        {
+            Expression = expression;
+            Segments = segments;
+            NameQueue = nameQueue;
+            FinalProject = finalProject;
+        }
+
+        public X Run<X>(SplitHandler<A, X> handler)
+        {
+            return handler.Bind(this);
+        }
+    }
+
     public class ExpressionVariables
     {
         public readonly BindProjectPair Expressions;
@@ -47,16 +68,24 @@ namespace HaxlSharp
         }
     }
 
-    public static class Splitter
+    public class Splitta<C> : FetchSplitter<C>
     {
-        public static Task<A> FetchSplit<A>(this SplitApplicatives<A> splits)
+        public SplitFetch<C> Bind<A, B>(Fetch<C> bind)
         {
-            return RunSplits.Run(splits, new DefaultFetcher(new Dictionary<Type, Func<GenericRequest, Result>>(), new Dictionary<Type, Func<GenericRequest, Task<Result>>>()));
+            return Splitter.Split(bind);
         }
 
-        public static SplitApplicatives<A> Split<A>(Fetch<A> expression)
+        public SplitFetch<C> Pass(Fetch<C> unsplittable)
         {
-            if (IsIdentity(expression)) return new SplitApplicatives<A>(expression);
+            return (SplitFetch<C>) unsplittable;
+        }
+    }
+
+
+    public static class Splitter
+    {
+        public static SplitFetch<A> Split<A>(Fetch<A> expression)
+        {
             var segments = new List<ApplicativeGroup>();
             var currentSegment = new ApplicativeGroup();
             var seenParameters = new HashSet<string>();
@@ -102,12 +131,8 @@ namespace HaxlSharp
             var boundVarQueue = BoundQueryVars(segments);
             var finalProject = segments.Last().Expressions.First();
             segments.RemoveAt(segments.Count - 1);
-            return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
-        }
-
-        public static bool IsIdentity<A>(Fetch<A> expression)
-        {
-            return expression is Request<A> || expression is FetchResult<A> || RunSplits.IsGenericTypeOf(expression.GetType(), typeof(RequestSequence<,>)) || RunSplits.IsGenericTypeOf(expression.GetType(), typeof(Select<,>));
+            return new SplitBind<A>(expression, segments, boundVarQueue, finalProject);
+            //return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)
