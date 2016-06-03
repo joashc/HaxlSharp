@@ -8,54 +8,20 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
-    public class SplitApplicatives<A>
-    {
-        public readonly Fetch<A> Expression;
-        public readonly IEnumerable<ApplicativeGroup> Segments;
-        public readonly bool IsIdentity;
-        public readonly Queue<string> NameQueue;
-        public readonly LambdaExpression FinalProject;
-
-        public SplitApplicatives(Fetch<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
-        {
-            Expression = expression;
-            Segments = segments;
-            NameQueue = nameQueue;
-            IsIdentity = false;
-            FinalProject = finalProject;
-        }
-
-        public SplitApplicatives(Fetch<A> expression)
-        {
-            IsIdentity = true;
-            Expression = expression;
-        }
-
-    }
-
     public class SplitBind<A> : SplitFetch<A>
     {
-        public readonly Fetch<A> Expression;
-        public readonly IEnumerable<ApplicativeGroup> Segments;
-        public readonly Queue<string> NameQueue;
-        public readonly LambdaExpression FinalProject;
+        public IEnumerable<ApplicativeGroup> Segments { get; }
+        public Queue<string> NameQueue { get; }
 
-        public SplitBind(Fetch<A> expression, IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue, LambdaExpression finalProject)
+        public SplitBind(IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue)
         {
-            Expression = expression;
             Segments = segments;
             NameQueue = nameQueue;
-            FinalProject = finalProject;
         }
 
         public X Run<X>(SplitHandler<A, X> handler)
         {
             return handler.Bind(this);
-        }
-
-        public BlockedRequestList CollectRequests(string bindTo)
-        {
-            return Run(new RequestCollector<A>(bindTo));
         }
     }
 
@@ -134,10 +100,7 @@ namespace HaxlSharp
             }
 
             var boundVarQueue = BoundQueryVars(segments);
-            var finalProject = segments.Last().Expressions.First();
-            segments.RemoveAt(segments.Count - 1);
-            return new SplitBind<A>(expression, segments, boundVarQueue, finalProject);
-            //return new SplitApplicatives<A>(expression, segments, boundVarQueue, finalProject);
+            return new SplitBind<A>(segments, boundVarQueue);
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)
@@ -183,6 +146,7 @@ namespace HaxlSharp
                     nameQueue.Enqueue(prefixed);
                 }
             }
+            nameQueue.Enqueue("<>HAXL_RESULT");
             return nameQueue;
         }
     }

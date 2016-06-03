@@ -18,7 +18,6 @@ namespace HaxlSharp
     public interface SplitFetch<A>
     {
         X Run<X>(SplitHandler<A, X> handler);
-        BlockedRequestList CollectRequests(string bindTo);
     }
 
     public interface SplitHandler<A, X>
@@ -113,11 +112,6 @@ namespace HaxlSharp
             var split = Split();
             var runner = new SplitRunner<A>(fetcher, nestLevel);
             return split.Run(runner);
-        }
-
-        public BlockedRequestList CollectRequests(string bindTo)
-        {
-            return Run(new RequestCollector<A>(bindTo));
         }
     }
 

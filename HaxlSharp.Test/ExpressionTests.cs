@@ -60,11 +60,11 @@ namespace HaxlSharp.Test
                              // split                                 		// =========
                              from w in d(y)                           		// Group 4.1
                              // projection                            		// =========
-                             select x + y + z + w;                    		// Final Projection
+                             select x + y + z + w;                    		// Group 5.1 (Projection)
 
             var split = Splitter.Split(expression);
             Assert.AreEqual(4, SplitCount(split));
-            Assert.AreEqual(1, ProjectCount(split));
+            Assert.AreEqual(2, ProjectCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
             Assert.AreEqual(1, CountAt(split, 2)); 
@@ -89,12 +89,12 @@ namespace HaxlSharp.Test
                              // split                                 // =========
                              from w in d(y)                           // Group 4.1
                              // projection                            // =========
-                             select x + y + z + w;                    // Final Projection
+                             select x + y + z + w;                    // Group 5.1 (Projection)
 
             var split = Splitter.Split(expression);
             var result = await expression.FetchWith(Blog.Fetcher());
             Assert.AreEqual(4, SplitCount(split));
-            Assert.AreEqual(1, ProjectCount(split));
+            Assert.AreEqual(2, ProjectCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
             Assert.AreEqual(2, CountAt(split, 1));
             Assert.AreEqual(1, CountAt(split, 2)); 
