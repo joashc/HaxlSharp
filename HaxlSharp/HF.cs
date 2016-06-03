@@ -12,12 +12,13 @@ namespace HaxlSharp
         IEnumerable<BindProjectPair> CollectedExpressions { get; }
         LambdaExpression Initial { get; }
         SplitFetch<A> Split(FetchSplitter<A> splitter);
-        Task<A> FetchWith(Fetcher fetcher);
+        Task<A> FetchWith(Fetcher fetcher, int nestLevel = 0);
     }
 
     public interface SplitFetch<A>
     {
         X Run<X>(SplitHandler<A, X> handler);
+        IEnumerable<FetchResult> CollectRequests(string bindTo);
     }
 
     public interface SplitHandler<A, X>
@@ -58,10 +59,10 @@ namespace HaxlSharp
             return splitter.Bind<A, B>(this);
         }
 
-        public Task<C> FetchWith(Fetcher fetcher)
+        public Task<C> FetchWith(Fetcher fetcher, int nestLevel)
         {
             var split = Split(new Splitta<C>());
-            var runner = new SplitRunner<C>(fetcher);
+            var runner = new SplitRunner<C>(fetcher, nestLevel);
             return split.Run(runner);
         }
     }
@@ -105,11 +106,16 @@ namespace HaxlSharp
             return splitter.Pass(this);
         }
 
-        public Task<A> FetchWith(Fetcher fetcher)
+        public Task<A> FetchWith(Fetcher fetcher, int nestLevel)
         {
             var split = Split(new Splitta<A>());
-            var runner = new SplitRunner<A>(fetcher);
+            var runner = new SplitRunner<A>(fetcher, nestLevel);
             return split.Run(runner);
+        }
+
+        public IEnumerable<FetchResult> CollectRequests(string bindTo)
+        {
+            return Run(new RequestCollector<A>(bindTo));
         }
     }
 

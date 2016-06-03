@@ -7,19 +7,53 @@ using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
+    public interface FetchResult
+    {
+
+        bool isBlocked { get; }
+
+    }
+
+
     /// <summary>
     /// Simulate existential types by packaging the request with its type information. 
     /// </summary>
-    public class GenericRequest
+    public class BlockedRequest : FetchResult
     {
         public readonly object TypedRequest;
         public readonly Type RequestType;
         public readonly string BindName;
-        public GenericRequest(object typedRequest, Type requestType, string bindName)
+
+        public bool isBlocked
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public BlockedRequest(object typedRequest, Type requestType, string bindName)
         {
             TypedRequest = typedRequest;
             RequestType = requestType;
             BindName = bindName;
+        }
+    }
+
+    public class ProjectResult : FetchResult
+    {
+        public readonly Action<Dictionary<string, object>> PutResult;
+        public ProjectResult(Action<Dictionary<string, object>> putResult)
+        {
+            PutResult = putResult;
+        }
+
+        public bool isBlocked
+        {
+            get
+            {
+                return false;
+            }
         }
     }
 
@@ -45,12 +79,12 @@ namespace HaxlSharp
 
     public class FetcherBuilder
     {
-        private readonly Dictionary<Type, Func<GenericRequest, Result>> _fetchFunctions;
-        private readonly Dictionary<Type, Func<GenericRequest, Task<Result>>> _asyncFetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Result>> _fetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Task<Result>>> _asyncFetchFunctions;
         public FetcherBuilder()
         {
-            _fetchFunctions = new Dictionary<Type, Func<GenericRequest, Result>>();
-            _asyncFetchFunctions = new Dictionary<Type, Func<GenericRequest, Task<Result>>>();
+            _fetchFunctions = new Dictionary<Type, Func<BlockedRequest, Result>>();
+            _asyncFetchFunctions = new Dictionary<Type, Func<BlockedRequest, Task<Result>>>();
         }
 
         public static FetcherBuilder New()
@@ -61,11 +95,11 @@ namespace HaxlSharp
         /// <summary>
         /// Creates untyped fetch function from typed fetch function.
         /// </summary>
-        private Func<GenericRequest, Result> CreateFetchFunc<Req, Res>(Func<Req, Res> fetchFunc) where Req : Returns<Res>
+        private Func<BlockedRequest, Result> CreateFetchFunc<Req, Res>(Func<Req, Res> fetchFunc) where Req : Returns<Res>
         {
             var resultType = typeof(Res);
             var requestType = typeof(Req);
-            Func<GenericRequest, Result> untypedFetchFunc = request =>
+            Func<BlockedRequest, Result> untypedFetchFunc = request =>
             {
                 if (request.RequestType != requestType) throw new ArgumentException("Invalid request type");
                 var typedRequest = (Req)request.TypedRequest;
@@ -78,11 +112,11 @@ namespace HaxlSharp
         /// <summary>
         /// Creates untyped async fetch function from typed async fetch function.
         /// </summary>
-        private Func<GenericRequest, Task<Result>> CreateAsyncFetchFunc<Req, Res>(Func<Req, Task<Res>> fetchFunc) where Req : Returns<Res>
+        private Func<BlockedRequest, Task<Result>> CreateAsyncFetchFunc<Req, Res>(Func<Req, Task<Res>> fetchFunc) where Req : Returns<Res>
         {
             var resultType = typeof(Res);
             var requestType = typeof(Req);
-            Func<GenericRequest, Task<Result>> untypedFetchFunc = async blockedRequest =>
+            Func<BlockedRequest, Task<Result>> untypedFetchFunc = async blockedRequest =>
             {
                 if (blockedRequest.RequestType != requestType) throw new ArgumentException($"Request type mismatch: expected '{requestType}', got '{blockedRequest.RequestType}'");
                 var typedRequest = (Req)blockedRequest.TypedRequest;

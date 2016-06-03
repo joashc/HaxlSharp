@@ -8,31 +8,32 @@ namespace HaxlSharp
 {
     public interface Fetcher
     {
-        Task<Result> Fetch(GenericRequest request);
-        Task<IEnumerable<Result>> FetchBatch(IEnumerable<GenericRequest> requests);
+        Task<Result> Fetch(BlockedRequest request);
+        Task<IEnumerable<Result>> FetchBatch(IEnumerable<BlockedRequest> requests);
 
-        Task<A> Fetch<A>(Fetch<A> request);
+        Task<A> Fetch<A>(Fetch<A> request, int nestLevel);
     }
 
     public class DefaultFetcher : Fetcher
     {
-        private readonly Dictionary<Type, Func<GenericRequest, Result>> _fetchFunctions;
-        private readonly Dictionary<Type, Func<GenericRequest, Task<Result>>> _asyncFetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Result>> _fetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Task<Result>>> _asyncFetchFunctions;
 
-        public DefaultFetcher(Dictionary<Type, Func<GenericRequest, Result>> fetchFunctions, Dictionary<Type, Func<GenericRequest, Task<Result>>> asyncFetchFunctions)
+        public DefaultFetcher(Dictionary<Type, Func<BlockedRequest, Result>> fetchFunctions, Dictionary<Type, Func<BlockedRequest, Task<Result>>> asyncFetchFunctions)
         {
             _fetchFunctions = fetchFunctions;
             _asyncFetchFunctions = asyncFetchFunctions;
         }
 
-        private void ThrowIfUnhandled(GenericRequest request)
+        private void ThrowIfUnhandled(BlockedRequest request)
         {
             if (!_fetchFunctions.ContainsKey(request.RequestType) && !_asyncFetchFunctions.ContainsKey(request.RequestType))
                 throw new ApplicationException($"No handler for request type '{request.RequestType}' found.");
         }
 
-        public async Task<Result> Fetch(GenericRequest request)
+        public async Task<Result> Fetch(BlockedRequest request)
         {
+            await Task.Delay(1000);
             ThrowIfUnhandled(request);
             if (_fetchFunctions.ContainsKey(request.RequestType))
             {
@@ -43,16 +44,16 @@ namespace HaxlSharp
             return await asyncHandler(request);
         }
 
-        public async Task<IEnumerable<Result>> FetchBatch(IEnumerable<GenericRequest> requests)
+        public async Task<IEnumerable<Result>> FetchBatch(IEnumerable<BlockedRequest> requests)
         {
             var tasks = requests.Select(Fetch);
             var resultArray = await Task.WhenAll(tasks);
             return resultArray;
         }
 
-        public Task<A> Fetch<A>(Fetch<A> request)
+        public async Task<A> Fetch<A>(Fetch<A> request, int nestLevel)
         {
-            return request.FetchWith(this);
+            return await request.FetchWith(this, nestLevel);
         }
     }
 }

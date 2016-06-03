@@ -117,8 +117,9 @@ namespace HaxlSharp.Test
         {
             var latest = await BlogFetch(FetchTwoLatestPosts());
             var first = await BlogFetch(FetchPostInfo(latest.Item1));
+            var firstContent = await BlogFetch(FetchPostContent(latest.Item1));
             var second = await BlogFetch(FetchPostInfo(latest.Item2));
-            var third = await BlogFetch(FetchPostInfo(2));
+            var secondContent = await BlogFetch(FetchPostContent(latest.Item2));
         }
     }
 }
