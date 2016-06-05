@@ -23,6 +23,7 @@ namespace HaxlSharp
         public readonly object TypedRequest;
         public readonly Type RequestType;
         public readonly string BindName;
+        public readonly TaskCompletionSource<object> Resolver;
 
         public bool isBlocked
         {
@@ -37,6 +38,7 @@ namespace HaxlSharp
             TypedRequest = typedRequest;
             RequestType = requestType;
             BindName = bindName;
+            Resolver = new TaskCompletionSource<object>();
         }
     }
 
@@ -57,12 +59,12 @@ namespace HaxlSharp
         }
     }
 
-    public class Result
+    public class Response
     {
         public readonly object Value;
         public readonly string BindName;
         public readonly Type ResultType;
-        public Result(object value, Type resultType, string bindName)
+        public Response(object value, Type resultType, string bindName)
         {
             Value = value;
             ResultType = resultType;
@@ -79,12 +81,12 @@ namespace HaxlSharp
 
     public class FetcherBuilder
     {
-        private readonly Dictionary<Type, Func<BlockedRequest, Result>> _fetchFunctions;
-        private readonly Dictionary<Type, Func<BlockedRequest, Task<Result>>> _asyncFetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Response>> _fetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Task<Response>>> _asyncFetchFunctions;
         public FetcherBuilder()
         {
-            _fetchFunctions = new Dictionary<Type, Func<BlockedRequest, Result>>();
-            _asyncFetchFunctions = new Dictionary<Type, Func<BlockedRequest, Task<Result>>>();
+            _fetchFunctions = new Dictionary<Type, Func<BlockedRequest, Response>>();
+            _asyncFetchFunctions = new Dictionary<Type, Func<BlockedRequest, Task<Response>>>();
         }
 
         public static FetcherBuilder New()
@@ -95,16 +97,16 @@ namespace HaxlSharp
         /// <summary>
         /// Creates untyped fetch function from typed fetch function.
         /// </summary>
-        private Func<BlockedRequest, Result> CreateFetchFunc<Req, Res>(Func<Req, Res> fetchFunc) where Req : Returns<Res>
+        private Func<BlockedRequest, Response> CreateFetchFunc<Req, Res>(Func<Req, Res> fetchFunc) where Req : Returns<Res>
         {
             var resultType = typeof(Res);
             var requestType = typeof(Req);
-            Func<BlockedRequest, Result> untypedFetchFunc = request =>
+            Func<BlockedRequest, Response> untypedFetchFunc = request =>
             {
                 if (request.RequestType != requestType) throw new ArgumentException("Invalid request type");
                 var typedRequest = (Req)request.TypedRequest;
                 var result = fetchFunc(typedRequest);
-                return new Result(result, typeof(Res), request.BindName);
+                return new Response(result, typeof(Res), request.BindName);
             };
             return untypedFetchFunc;
         }
@@ -112,16 +114,16 @@ namespace HaxlSharp
         /// <summary>
         /// Creates untyped async fetch function from typed async fetch function.
         /// </summary>
-        private Func<BlockedRequest, Task<Result>> CreateAsyncFetchFunc<Req, Res>(Func<Req, Task<Res>> fetchFunc) where Req : Returns<Res>
+        private Func<BlockedRequest, Task<Response>> CreateAsyncFetchFunc<Req, Res>(Func<Req, Task<Res>> fetchFunc) where Req : Returns<Res>
         {
             var resultType = typeof(Res);
             var requestType = typeof(Req);
-            Func<BlockedRequest, Task<Result>> untypedFetchFunc = async blockedRequest =>
+            Func<BlockedRequest, Task<Response>> untypedFetchFunc = async blockedRequest =>
             {
                 if (blockedRequest.RequestType != requestType) throw new ArgumentException($"Request type mismatch: expected '{requestType}', got '{blockedRequest.RequestType}'");
                 var typedRequest = (Req)blockedRequest.TypedRequest;
                 var result = await fetchFunc(typedRequest);
-                return new Result(result, typeof(Res), blockedRequest.BindName);
+                return new Response(result, typeof(Res), blockedRequest.BindName);
             };
             return untypedFetchFunc;
         }

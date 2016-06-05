@@ -35,8 +35,7 @@ namespace HaxlSharp
             var tasks = list.Select(b =>
             {
                 var fetch = bind(b);
-                var split = fetch.Split();
-                return split.Run(new SplitRunner<Item>(fetcher, nestLevel + 1));
+                return fetch.FetchWith(fetcher);
             });
             var results = await Task.WhenAll(tasks);
             return (A)(object)results.ToList();
@@ -102,8 +101,8 @@ namespace HaxlSharp
                 {
                     var bindTo = splits.NameQueue.Dequeue();
                     var rewritten = rebindTransparent.Rewrite(exp);
-                    dynamic request = rewritten.Compile().DynamicInvoke(scope);
-                    var result = await request.FetchWith(fetcher, nestLevel + 1);
+                    dynamic fetch = rewritten.Compile().DynamicInvoke(scope);
+                    var result = await fetch.FetchWith(fetcher, nestLevel + 1);
                     scope.Add(bindTo, result);
                     log($"Fetched '{bindTo}': {result}");
                 }).ToList();

@@ -11,6 +11,11 @@ namespace HaxlSharp
         private readonly Dictionary<string, object> boundVariables;
         private readonly Scope parentScope;
 
+        public static Scope New()
+        {
+            return new Scope();
+        }
+
         public Scope()
         {
             boundVariables = new Dictionary<string, object>();
@@ -20,6 +25,14 @@ namespace HaxlSharp
         public Scope(Scope scope)
         {
             boundVariables = new Dictionary<string, object>();
+            parentScope = scope;
+        }
+
+        public bool IsRoot { get { return parentScope == null; } }
+
+        private Scope(Dictionary<string, object> dic, Scope scope)
+        {
+            boundVariables = dic;
             parentScope = scope;
         }
 
@@ -37,9 +50,16 @@ namespace HaxlSharp
             return parentScope.InScope(variableName);
         }
 
-        public void Add(string name, object value)
+        public Scope Add(string name, object value)
         {
             boundVariables[name] = value;
+            var newDic = new Dictionary<string, object>(boundVariables, null);
+            return new Scope(newDic, parentScope);
+        }
+
+        public Scope WriteParent(string name, object value)
+        {
+            return parentScope.Add(name, value);
         }
 
         public IEnumerable<string> Keys
@@ -48,6 +68,14 @@ namespace HaxlSharp
             {
                 if (parentScope == null) return boundVariables.Keys;
                 return boundVariables.Keys.Concat(parentScope.Keys);
+            }
+        }
+
+        public IEnumerable<object> ShallowValues
+        {
+            get
+            {
+                return boundVariables.Values;
             }
         }
     }

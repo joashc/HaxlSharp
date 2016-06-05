@@ -48,7 +48,7 @@ namespace HaxlSharp
 
         public SplitFetch<C> Pass(Fetch<C> unsplittable)
         {
-            return (SplitFetch<C>) unsplittable;
+            return (SplitFetch<C>)unsplittable;
         }
     }
 
@@ -81,7 +81,8 @@ namespace HaxlSharp
                 var split = ShouldSplit(expr, currentSegment.BoundVariables, seenParameters);
                 currentSegment.BoundVariables.AddRange(expr.BindVariables.ParameterNames);
                 var hasProject = expr.ProjectVariables.ParameterNames.Any(f => !boundParams.Contains(f));
-                if (hasProject) {
+                if (hasProject)
+                {
                     currentSegment.BoundVariables.AddRange(expr.ProjectVariables.ParameterNames);
                     seenParameters.Clear();
                 }
@@ -100,7 +101,78 @@ namespace HaxlSharp
             }
 
             var boundVarQueue = BoundQueryVars(segments);
+            var boundVarQueue2 = BoundQueryVars(segments);
+            foreach (var segment in segments)
+            {
+                segment.BoundExpressions = segment.Expressions.Select(e =>
+                {
+                    var bindVar = boundVarQueue2.Dequeue();
+                    return new BoundExpression(e, bindVar);
+                }).ToList();
+            }
             return new SplitBind<A>(segments, boundVarQueue);
+        }
+
+        public static async Task<Scope> RunFetch(Fetch fetch, Scope scope, Fetcher fetcher)
+        {
+            var result = fetch.Result.Value;
+            return await result.Match(
+                done => Task.FromResult(done.AddToScope(scope)),
+                async blocked =>
+                {
+                    await fetcher.FetchBatch(blocked.BlockedRequests);
+                    return await RunFetch(blocked.Continue, scope, fetcher);
+                }
+            );
+        }
+
+        public static Fetch ToFetch<A>(SplitBind<A> split, string parentBind = null, Scope parentScope = null)
+        {
+            if (parentScope == null) parentScope = Scope.New();
+            var rebinder = new RebindTransparent();
+            Fetch finalFetch = null;
+            Action<Func<Scope, Fetch>> bind = f =>
+            {
+                if (finalFetch == null) finalFetch = f(parentScope);
+                else finalFetch = finalFetch.Bind(f);
+            };
+
+            foreach (var segment in split.Segments)
+            {
+                if (segment.IsProjectGroup)
+                {
+                    var boundProject = segment.BoundExpressions.First();
+                    var rewritten = rebinder.Rewrite(boundProject.Expression);
+                    var wrapped = rewritten.Compile();
+                    finalFetch = finalFetch.Bind(scope =>
+                    Fetch.FromFunc(() =>
+                   {
+                       var result = wrapped.DynamicInvoke(scope);
+                       return Done.New(_ =>
+                       {
+                           if (boundProject.BindVariable == "<>HAXL_RESULT" && !scope.IsRoot && parentBind != null)
+                           {
+                               return scope.WriteParent(parentBind, result);
+                           }
+                           else
+                           {
+                               return scope.Add(boundProject.BindVariable, result);
+                           }
+                       });
+                   }));
+                    continue;
+                }
+                Func<Scope, Fetch> currentGroup = scope =>
+                    segment.BoundExpressions.Aggregate(Fetch.FromFunc(() => Done.New(s => s)), (group, be) =>
+                    {
+                        var rewritten = rebinder.Rewrite(be.Expression);
+                        dynamic wrapped = rewritten.Compile().DynamicInvoke(scope);
+                        var fetch = (Fetch)wrapped.ToFetch(be.BindVariable, scope);
+                        return group.Applicative(fetch);
+                    });
+                bind(currentGroup);
+            }
+            return finalFetch;
         }
 
         private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)
@@ -133,7 +205,7 @@ namespace HaxlSharp
             foreach (var group in groups)
             {
                 // Handle composed queries 
-                if (group.IsProjectGroup) 
+                if (group.IsProjectGroup)
                 {
                     i++;
                     seen.Clear();

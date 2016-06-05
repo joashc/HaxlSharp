@@ -24,6 +24,9 @@ namespace HaxlSharp.Test
             var firstPostInfo = from postIds in FetchAllPostIds()
                                 from firstInfo in FetchPostInfo(postIds.First())
                                 select firstInfo;
+            var split = Splitter.Split(firstPostInfo);
+            var test = Splitter.ToFetch((SplitBind<PostInfo>) split);
+            var re = Splitter.RunFetch(test, Scope.New(), Fetcher());
             var result = await firstPostInfo.FetchWith(Fetcher());
         }
 
@@ -34,7 +37,9 @@ namespace HaxlSharp.Test
                 from postIds in FetchAllPostIds()
                 from postInfo in postIds.SelectFetch(Blog.GetPostDetails)
                 select postInfo;
-            var result = await getAllPostsInfo.FetchWith(Fetcher());
+            var split = Splitter.Split(getAllPostsInfo);
+            var test = Splitter.ToFetch((SplitBind<IEnumerable<PostDetails>>) split);
+            var re = await Splitter.RunFetch(test, Scope.New(), Fetcher());
         }
 
 
@@ -77,6 +82,9 @@ namespace HaxlSharp.Test
                         from second in GetPostDetails(latest.Item2)
                         select new List<PostDetails> { first, second };
             var result = await fetch.FetchWith(Fetcher());
+            var hey = fetch.Split();
+            var yeah = await Splitter.RunFetch(Splitter.ToFetch((SplitBind<List<PostDetails>>)hey), Scope.New(), Fetcher());
+            ;
         }
 
         [TestMethod]

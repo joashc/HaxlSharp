@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,18 +9,18 @@ namespace HaxlSharp
 {
     public interface Fetcher
     {
-        Task<Result> Fetch(BlockedRequest request);
-        Task<IEnumerable<Result>> FetchBatch(IEnumerable<BlockedRequest> requests);
+        Task<Response> Fetch(BlockedRequest request);
+        Task<IEnumerable<Response>> FetchBatch(IEnumerable<BlockedRequest> requests);
 
         Task<A> Fetch<A>(Fetch<A> request, int nestLevel);
     }
 
     public class DefaultFetcher : Fetcher
     {
-        private readonly Dictionary<Type, Func<BlockedRequest, Result>> _fetchFunctions;
-        private readonly Dictionary<Type, Func<BlockedRequest, Task<Result>>> _asyncFetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Response>> _fetchFunctions;
+        private readonly Dictionary<Type, Func<BlockedRequest, Task<Response>>> _asyncFetchFunctions;
 
-        public DefaultFetcher(Dictionary<Type, Func<BlockedRequest, Result>> fetchFunctions, Dictionary<Type, Func<BlockedRequest, Task<Result>>> asyncFetchFunctions)
+        public DefaultFetcher(Dictionary<Type, Func<BlockedRequest, Response>> fetchFunctions, Dictionary<Type, Func<BlockedRequest, Task<Response>>> asyncFetchFunctions)
         {
             _fetchFunctions = fetchFunctions;
             _asyncFetchFunctions = asyncFetchFunctions;
@@ -31,22 +32,33 @@ namespace HaxlSharp
                 throw new ApplicationException($"No handler for request type '{request.RequestType}' found.");
         }
 
-        public async Task<Result> Fetch(BlockedRequest request)
+        public async Task<Response> Fetch(BlockedRequest request)
         {
             ThrowIfUnhandled(request);
             if (_fetchFunctions.ContainsKey(request.RequestType))
             {
                 var handler = _fetchFunctions[request.RequestType];
-                return await Task.Factory.StartNew(() => handler(request));
+                return await Task.Factory.StartNew(() =>
+                {
+                    var result = handler(request);
+                    request.Resolver.SetResult(result.Value);
+                    Debug.WriteLine($"Fetched '{request.BindName}': {result.Value}");
+                    return result;
+                });
             }
             var asyncHandler = _asyncFetchFunctions[request.RequestType];
-            return await asyncHandler(request);
+            var response = await asyncHandler(request);
+            request.Resolver.SetResult(response.Value);
+            Debug.WriteLine($"Fetched '{request.BindName}': {response.Value}");
+            return response;
         }
 
-        public async Task<IEnumerable<Result>> FetchBatch(IEnumerable<BlockedRequest> requests)
+        public async Task<IEnumerable<Response>> FetchBatch(IEnumerable<BlockedRequest> requests)
         {
+            Debug.WriteLine("==== Batch ====");
             var tasks = requests.Select(Fetch);
             var resultArray = await Task.WhenAll(tasks);
+            Debug.WriteLine("");
             return resultArray;
         }
 

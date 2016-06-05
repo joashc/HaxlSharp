@@ -13,6 +13,7 @@ namespace HaxlSharp
         LambdaExpression Initial { get; }
         SplitFetch<A> Split();
         Task<A> FetchWith(Fetcher fetcher, int nestLevel = 0);
+        Fetch ToFetch(string bindTo, Scope scope);
     }
 
     public interface SplitFetch<A>
@@ -59,11 +60,28 @@ namespace HaxlSharp
             return splitter.Bind<A, B>(this);
         }
 
+        public Fetch ToFetch(string bindTo, Scope scope)
+        {
+            var bindSplit = Split();
+            return Splitter.ToFetch((SplitBind<C>)bindSplit, bindTo, new Scope(scope));
+        }
+
         public Task<C> FetchWith(Fetcher fetcher, int nestLevel)
         {
             var split = Split();
             var runner = new SplitRunner<C>(fetcher, nestLevel);
             return split.Run(runner);
+        }
+    }
+
+    public class BoundExpression
+    {
+        public readonly LambdaExpression Expression;
+        public readonly string BindVariable;
+        public BoundExpression(LambdaExpression expression, string bindVariable)
+        {
+            Expression = expression;
+            BindVariable = bindVariable;
         }
     }
 
@@ -90,6 +108,7 @@ namespace HaxlSharp
 
         public readonly List<LambdaExpression> Expressions;
         public readonly List<string> BoundVariables;
+        public List<BoundExpression> BoundExpressions;
         public readonly bool IsProjectGroup;
     }
 
@@ -113,6 +132,11 @@ namespace HaxlSharp
             var runner = new SplitRunner<A>(fetcher, nestLevel);
             return split.Run(runner);
         }
+
+        public virtual Fetch ToFetch(string bindTo, Scope scope)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class Request<A> : FetchNode<A>
@@ -121,6 +145,22 @@ namespace HaxlSharp
         public Request(Returns<A> request)
         {
             this.request = request;
+        }
+
+        public override Fetch ToFetch(string bindTo, Scope scope)
+        {
+            return Fetch.FromFunc(() =>
+            {
+                var blocked = new BlockedRequest(request, request.GetType(), bindTo);
+                return Blocked.New(
+                    new List<BlockedRequest> { blocked },
+                    Fetch.FromFunc(() => Done.New(_ =>
+                    {
+                        var result = blocked.Resolver.Task.Result;
+                        return scope.Add(bindTo, result);
+                    }))
+                );
+            });
         }
 
         public Type RequestType { get { return request.GetType(); } }
@@ -141,6 +181,21 @@ namespace HaxlSharp
             Bind = bind;
         }
 
+        public override Fetch ToFetch(string bindTo, Scope parentScope)
+        {
+            var childScope = new Scope(parentScope);
+            var fetches = List.Select(Bind)
+                              .Select((f, i) => f.ToFetch(i.ToString(), childScope));
+
+            var concurrent = fetches.Aggregate((f1, f2) => f1.Applicative(f2));
+            return concurrent.Bind(scope => Fetch.FromFunc(() => Done.New(_ =>
+            {
+                var values = scope.ShallowValues.Select(v => (B)v);
+                return scope.WriteParent(bindTo, values);
+            }
+            )));
+        }
+
         public override X Run<X>(SplitHandler<IEnumerable<B>, X> handler)
         {
             return handler.RequestSequence(List, Bind);
@@ -157,15 +212,11 @@ namespace HaxlSharp
             Map = map;
         }
 
-        public LambdaExpression MapExpression
-        {
-            get { return Map; }
-        }
-
         public override X Run<X>(SplitHandler<B, X> handler)
         {
             return handler.Select(Fetch, Map);
         }
+
     }
 
     public class FetchResult<A> : FetchNode<A>

@@ -47,6 +47,7 @@
     <Compile Include="ApplicativeExpression\RunSplits.cs" />
     <Compile Include="ApplicativeExpression\Scope.cs" />
     <Compile Include="ApplicativeExpression\SplitApplicative.cs" />
+    <Compile Include="Fetch.cs" />
     <Compile Include="Fetcher\Fetcher.cs" />
     <Compile Include="Haxl.cs" />
     <Compile Include="HF.cs" />

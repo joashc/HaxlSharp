@@ -121,7 +121,7 @@ namespace HaxlSharp.Test
         public static Fetch<PostDetails> GetPostDetails(int postId)
         {
             var x = from info in FetchPostInfo(postId)
-                    from content in FetchPostContent(postId)
+                    from content in FetchPostContent(info.PostId)
                     select new PostDetails(info, content);
             return x;
         }
