@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
+    /// <summary>
+    /// Simple scope that does simple prototypal inheritance.
+    /// </summary>
     public class Scope
     {
         private readonly Dictionary<string, object> boundVariables;

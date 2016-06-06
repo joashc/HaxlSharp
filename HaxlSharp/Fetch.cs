@@ -1,126 +1,155 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
-using static HaxlSharp.Haxl;
 using System.Threading.Tasks;
+using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
-    public class Fetch
+    public interface Fetch<A>
     {
-        public Fetch(Lazy<Result> result)
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        IEnumerable<BindProjectPair> CollectedExpressions { get; }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        LambdaExpression Initial { get; }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        HaxlFetch ToHaxlFetch(string bindTo, Scope scope);
+    }
+
+    public class Bind<A, B, C> : Fetch<C>
+    {
+        private readonly IEnumerable<BindProjectPair> _binds;
+        public IEnumerable<BindProjectPair> CollectedExpressions { get { return _binds; } }
+        public readonly Fetch<A> Fetch;
+
+        public Bind(IEnumerable<BindProjectPair> binds, Fetch<A> expr)
         {
-            Result = result;
+            _binds = binds;
+            Fetch = expr;
         }
 
-        public static Fetch FromFunc(Func<Result> resultFunc)
+        public LambdaExpression Initial { get { return Fetch.Initial; } }
+
+        public HaxlFetch ToHaxlFetch(string bindTo, Scope scope)
         {
-            return new Fetch(new Lazy<Result>(resultFunc));
+            var bindSplit = QuerySplitter.Bind(CollectedExpressions, Initial);
+            return SplitQuery.ToFetch(bindSplit, bindTo, new Scope(scope));
+        }
+    }
+
+    public abstract class FetchNode<A> : Fetch<A>
+    {
+        private static readonly IEnumerable<BindProjectPair> emptyList = new List<BindProjectPair>();
+        public IEnumerable<BindProjectPair> CollectedExpressions { get { return emptyList; } }
+        public LambdaExpression Initial { get { return Expression.Lambda(Expression.Constant(this)); } }
+        public abstract HaxlFetch ToHaxlFetch(string bindTo, Scope scope);
+    }
+
+    public class Request<A> : FetchNode<A>
+    {
+        public readonly Returns<A> request;
+        public Request(Returns<A> request)
+        {
+            this.request = request;
         }
 
-        public readonly Lazy<Result> Result;
-
-        public Fetch Map(Func<Scope, Scope> addResult)
+        public override HaxlFetch ToHaxlFetch(string bindTo, Scope scope)
         {
-            return new Fetch(new Lazy<Result>(() =>
+            return HaxlFetch.FromFunc(() =>
             {
-                var result = Result.Value;
-                return result.Match<Result>(
-                    done => Done.New(comp(done.AddToScope, addResult)),
-                    blocked => Blocked.New(blocked.BlockedRequests, blocked.Continue.Map(addResult))
-                );
-            }));
-        }
-    }
-
-    public interface Result
-    {
-        X Match<X>(Func<Done, X> done, Func<Blocked, X> blocked);
-    }
-
-    public class Done : Result
-    {
-        public Func<Scope, Scope> AddToScope;
-
-        public static Done New(Func<Scope, Scope> addToScope)
-        {
-            return new Done(addToScope);
-        }
-
-        public Done(Func<Scope, Scope> addToScope)
-        {
-            AddToScope = addToScope;
-        }
-
-        public X Match<X>(Func<Done, X> done, Func<Blocked, X> blocked)
-        {
-            return done(this);
-        }
-    }
-
-    public class Blocked : Result
-    {
-        public readonly IEnumerable<BlockedRequest> BlockedRequests;
-        public readonly Fetch Continue;
-
-        public static Blocked New(IEnumerable<BlockedRequest> blocked, Fetch cont)
-        {
-            return new Blocked(blocked, cont);
-        }
-
-        private Blocked(IEnumerable<BlockedRequest> blocked, Fetch cont)
-        {
-            BlockedRequests = blocked;
-            Continue = cont;
-        }
-
-        public X Match<X>(Func<Done, X> done, Func<Blocked, X> blocked)
-        {
-            return blocked(this);
-        }
-    }
-
-    public static class FetchExt
-    {
-        public static Fetch Bind(this Fetch fetch, Func<Scope, Fetch> bind)
-        {
-            return Fetch.FromFunc(() =>
-            {
-                var result = fetch.Result.Value;
-                return result.Match(
-                    done => bind(done.AddToScope(Scope.New())).Result.Value,
-                    blocked => Blocked.New(blocked.BlockedRequests, blocked.Continue.Bind(bind))
+                var blocked = new BlockedRequest(request, request.GetType(), bindTo);
+                return Blocked.New(
+                    new List<BlockedRequest> { blocked },
+                    HaxlFetch.FromFunc(() => Done.New(_ =>
+                    {
+                        var result = blocked.Resolver.Task.Result;
+                        return scope.Add(bindTo, result);
+                    }))
                 );
             });
         }
 
-        public static Fetch Applicative(this Fetch fetch1, Fetch fetch2)
-        {
-            return Fetch.FromFunc(() =>
-            {
-                var result1 = fetch1.Result.Value;
-                var result2 = fetch2.Result.Value;
-                return result1.Match
-                (
-                    done1 => result2.Match<Result>
-                    (
-                        done2 => Done.New(comp(done1.AddToScope, done2.AddToScope)),
-                        blocked2 => Blocked.New(blocked2.BlockedRequests, blocked2.Continue.Map(done1.AddToScope))
-                    ),
+        public Type RequestType { get { return request.GetType(); } }
+    }
 
-                    blocked1 => result2.Match<Result>
-                    (
-                        done2 => Blocked.New(blocked1.BlockedRequests, blocked1.Continue.Map(done2.AddToScope)),
-                        blocked2 => Blocked.New(
-                            blocked1.BlockedRequests.Concat(blocked2.BlockedRequests),
-                            blocked1.Continue.Applicative(blocked2.Continue)
-                        )
-                    )
-                );
+    public class RequestSequence<A, B> : FetchNode<IEnumerable<B>>
+    {
+        public readonly IEnumerable<A> List;
+        public readonly Func<A, Fetch<B>> Bind;
+        public RequestSequence(IEnumerable<A> list, Func<A, Fetch<B>> bind)
+        {
+            List = list;
+            Bind = bind;
+        }
+
+        public override HaxlFetch ToHaxlFetch(string bindTo, Scope parentScope)
+        {
+            var childScope = new Scope(parentScope);
+            var fetches = List.Select(Bind)
+                              .Select((f, i) => f.ToHaxlFetch(i.ToString(), childScope));
+
+            var concurrent = fetches.Aggregate((f1, f2) => f1.Applicative(f2));
+            return concurrent.Bind(scope => HaxlFetch.FromFunc(() => Done.New(_ =>
+            {
+                var values = scope.ShallowValues.Select(v => (B)v);
+                return scope.WriteParent(bindTo, values);
+            }
+            )));
+        }
+    }
+
+    public class Select<A, B> : FetchNode<B>
+    {
+        public readonly Fetch<A> Fetch;
+        public readonly Expression<Func<A, B>> Map;
+        public Select(Fetch<A> fetch, Expression<Func<A, B>> map)
+        {
+            Fetch = fetch;
+            Map = map;
+        }
+
+        public override HaxlFetch ToHaxlFetch(string bindTo, Scope parentScope)
+        {
+            return Fetch.ToHaxlFetch(bindTo, parentScope).Map(scope =>
+            {
+                var value = (A)scope.GetValue(bindTo);
+                return scope.Add(bindTo, Map.Compile()(value));
             });
         }
     }
 
+    public static class ExprExt
+    {
+        public static Fetch<B> Select<A, B>(this Fetch<A> self, Expression<Func<A, B>> f)
+        {
+            return new Select<A, B>(self, f);
+        }
 
+        public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind, Expression<Func<A, B, C>> project)
+        {
+            var bindExpression = new BindProjectPair(bind, project);
+            var newBinds = self.CollectedExpressions.Append(bindExpression);
+            return new Bind<A, B, C>(newBinds, self);
+        }
+
+        /// <summary>
+        /// Default to using recursion depth limit of 100
+        /// </summary>
+        public static Fetch<IEnumerable<B>> SelectFetch<A, B>(this IEnumerable<A> list, Func<A, Fetch<B>> bind)
+        {
+            return new RequestSequence<A, B>(list, bind);
+        }
+
+        public static async Task<A> FetchWith<A>(this Fetch<A> fetch, Fetcher fetcher)
+        {
+            var run = fetch.ToHaxlFetch(HAXL_RESULT_NAME, Scope.New());
+            var scope = await SplitQuery.RunFetch(run, Scope.New(), fetcher);
+            return (A)scope.GetValue(HAXL_RESULT_NAME);
+        }
+    }
 }

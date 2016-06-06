@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaxlSharp", "HaxlSharp\Haxl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaxlSharp.Test", "HaxlSharp.Test\HaxlSharp.Test.csproj", "{B62BE199-4FAB-41BF-BB52-A194E7E8106D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaxlSharp.Core", "HaxlSharp.Core\HaxlSharp.Core.csproj", "{56487EB5-C699-4EAA-B384-C6F9E64635C5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaxlSharp.Internal", "HaxlSharp.Internal\HaxlSharp.Internal.csproj", "{EE4BE7B5-057E-4974-A995-120753D4436D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{B62BE199-4FAB-41BF-BB52-A194E7E8106D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B62BE199-4FAB-41BF-BB52-A194E7E8106D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B62BE199-4FAB-41BF-BB52-A194E7E8106D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56487EB5-C699-4EAA-B384-C6F9E64635C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56487EB5-C699-4EAA-B384-C6F9E64635C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56487EB5-C699-4EAA-B384-C6F9E64635C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56487EB5-C699-4EAA-B384-C6F9E64635C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE4BE7B5-057E-4974-A995-120753D4436D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE4BE7B5-057E-4974-A995-120753D4436D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE4BE7B5-057E-4974-A995-120753D4436D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE4BE7B5-057E-4974-A995-120753D4436D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

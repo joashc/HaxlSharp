@@ -2,69 +2,32 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
-using System.Text.RegularExpressions;
+using static HaxlSharp.Haxl;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace HaxlSharp
 {
-    public class SplitBind<A> : SplitFetch<A>
+    public class QuerySplitter
     {
-        public IEnumerable<ApplicativeGroup> Segments { get; }
-        public Queue<string> NameQueue { get; }
-
-        public SplitBind(IEnumerable<ApplicativeGroup> segments, Queue<string> nameQueue)
+        public static BindSegments Bind(IEnumerable<BindProjectPair> collectedExpressions, LambdaExpression initial)
         {
-            Segments = segments;
-            NameQueue = nameQueue;
-        }
-
-        public X Run<X>(SplitHandler<A, X> handler)
-        {
-            return handler.Bind(this);
+            return SplitQuery.Split(collectedExpressions, initial);
         }
     }
 
-    public class ExpressionVariables
+    public static class SplitQuery
     {
-        public readonly BindProjectPair Expressions;
-        public readonly Variables BindVariables;
-        public readonly Variables ProjectVariables;
-
-        public ExpressionVariables(BindProjectPair expressions, Variables bindVars, Variables projectVars)
-        {
-            Expressions = expressions;
-            BindVariables = bindVars;
-            ProjectVariables = projectVars;
-        }
-    }
-
-    public class Splitta<C> : FetchSplitter<C>
-    {
-        public SplitFetch<C> Bind<A, B>(Fetch<C> bind)
-        {
-            return Splitter.Split(bind);
-        }
-
-        public SplitFetch<C> Pass(Fetch<C> unsplittable)
-        {
-            return (SplitFetch<C>)unsplittable;
-        }
-    }
-
-
-    public static class Splitter
-    {
-        public static SplitFetch<A> Split<A>(Fetch<A> expression)
+        public static BindSegments Split(IEnumerable<BindProjectPair> collectedExpressions, LambdaExpression initial)
         {
             var segments = new List<ApplicativeGroup>();
             var currentSegment = new ApplicativeGroup();
             var seenParameters = new HashSet<string>();
 
             // Initialize first applicative group
-            currentSegment.Expressions.Add(expression.Initial);
+            currentSegment.Expressions.Add(initial);
 
-            var vars = expression.CollectedExpressions.Select(GetVariables);
+            var vars = collectedExpressions.Select(GetVariables);
             var boundParams = vars.SelectMany(v => v.BindVariables.ParameterNames);
 
             Action<bool> addCurrentSegment = isProject =>
@@ -101,19 +64,18 @@ namespace HaxlSharp
             }
 
             var boundVarQueue = BoundQueryVars(segments);
-            var boundVarQueue2 = BoundQueryVars(segments);
             foreach (var segment in segments)
             {
                 segment.BoundExpressions = segment.Expressions.Select(e =>
                 {
-                    var bindVar = boundVarQueue2.Dequeue();
+                    var bindVar = boundVarQueue.Dequeue();
                     return new BoundExpression(e, bindVar);
                 }).ToList();
             }
-            return new SplitBind<A>(segments, boundVarQueue);
+            return new BindSegments(segments);
         }
 
-        public static async Task<Scope> RunFetch(Fetch fetch, Scope scope, Fetcher fetcher)
+        public static async Task<Scope> RunFetch(HaxlFetch fetch, Scope scope, Fetcher fetcher)
         {
             var result = fetch.Result.Value;
             return await result.Match(
@@ -126,12 +88,12 @@ namespace HaxlSharp
             );
         }
 
-        public static Fetch ToFetch<A>(SplitBind<A> split, string parentBind = null, Scope parentScope = null)
+        public static HaxlFetch ToFetch(BindSegments split, string parentBind = null, Scope parentScope = null)
         {
             if (parentScope == null) parentScope = Scope.New();
-            var rebinder = new RebindTransparent();
-            Fetch finalFetch = null;
-            Action<Func<Scope, Fetch>> bind = f =>
+            var rebinder = new RebindToScope();
+            HaxlFetch finalFetch = null;
+            Action<Func<Scope, HaxlFetch>> bind = f =>
             {
                 if (finalFetch == null) finalFetch = f(parentScope);
                 else finalFetch = finalFetch.Bind(f);
@@ -142,15 +104,15 @@ namespace HaxlSharp
                 if (segment.IsProjectGroup)
                 {
                     var boundProject = segment.BoundExpressions.First();
-                    var rewritten = rebinder.Rewrite(boundProject.Expression);
+                    var rewritten = rebinder.Rebind(boundProject.Expression);
                     var wrapped = rewritten.Compile();
                     finalFetch = finalFetch.Bind(scope =>
-                    Fetch.FromFunc(() =>
+                    HaxlFetch.FromFunc(() =>
                    {
                        var result = wrapped.DynamicInvoke(scope);
                        return Done.New(_ =>
                        {
-                           if (boundProject.BindVariable == "<>HAXL_RESULT" && !scope.IsRoot && parentBind != null)
+                           if (boundProject.BindVariable == HAXL_RESULT_NAME && !scope.IsRoot && parentBind != null)
                            {
                                return scope.WriteParent(parentBind, result);
                            }
@@ -162,12 +124,12 @@ namespace HaxlSharp
                    }));
                     continue;
                 }
-                Func<Scope, Fetch> currentGroup = scope =>
-                    segment.BoundExpressions.Aggregate(Fetch.FromFunc(() => Done.New(s => s)), (group, be) =>
+                Func<Scope, HaxlFetch> currentGroup = scope =>
+                    segment.BoundExpressions.Aggregate(HaxlFetch.FromFunc(() => Done.New(s => s)), (group, be) =>
                     {
-                        var rewritten = rebinder.Rewrite(be.Expression);
+                        var rewritten = rebinder.Rebind(be.Expression);
                         dynamic wrapped = rewritten.Compile().DynamicInvoke(scope);
-                        var fetch = (Fetch)wrapped.ToFetch(be.BindVariable, scope);
+                        var fetch = (HaxlFetch) wrapped.ToHaxlFetch(be.BindVariable, scope);
                         return group.Applicative(fetch);
                     });
                 bind(currentGroup);
@@ -175,12 +137,12 @@ namespace HaxlSharp
             return finalFetch;
         }
 
-        private static string GetBindParameter(ExpressionVariables vars, HashSet<string> seenParams)
+        private static string GetBindParameter(BindProjectPairVars vars, HashSet<string> seenParams)
         {
             return vars.BindVariables.ParameterNames.First(name => !seenParams.Contains(name));
         }
 
-        private static bool ShouldSplit(ExpressionVariables vars, List<string> boundInGroup, HashSet<string> seenParams)
+        private static bool ShouldSplit(BindProjectPairVars vars, List<string> boundInGroup, HashSet<string> seenParams)
         {
             var firstParamName = GetBindParameter(vars, seenParams);
             seenParams.Add(firstParamName);
@@ -190,35 +152,35 @@ namespace HaxlSharp
             return false;
         }
 
-        private static ExpressionVariables GetVariables(BindProjectPair pair)
+        private static BindProjectPairVars GetVariables(BindProjectPair pair)
         {
-            var bindVars = DetectApplicative.GetExpressionVariables(pair.Bind);
-            var projectVars = DetectApplicative.GetExpressionVariables(pair.Project);
-            return new ExpressionVariables(pair, bindVars, projectVars);
+            var bindVars = ParseExpression.GetExpressionVariables(pair.Bind);
+            var projectVars = ParseExpression.GetExpressionVariables(pair.Project);
+            return new BindProjectPairVars(pair, bindVars, projectVars);
         }
 
         private static Queue<string> BoundQueryVars(List<ApplicativeGroup> groups)
         {
             var seen = new HashSet<string>();
             var nameQueue = new Queue<string>();
-            var i = 0;
+            var blockCount = 0;
             foreach (var group in groups)
             {
                 // Handle composed queries 
                 if (group.IsProjectGroup)
                 {
-                    i++;
+                    blockCount++;
                     seen.Clear();
                 }
                 var unseen = group.BoundVariables.Where(name => !seen.Contains(name));
                 foreach (var param in unseen)
                 {
                     seen.Add(param);
-                    var prefixed = $"{i}{param}";
+                    var prefixed = PrefixedVariable(blockCount, param);
                     nameQueue.Enqueue(prefixed);
                 }
             }
-            nameQueue.Enqueue("<>HAXL_RESULT");
+            nameQueue.Enqueue(HAXL_RESULT_NAME);
             return nameQueue;
         }
     }

@@ -23,5 +23,9 @@ namespace HaxlSharp
             return new Request<A>(request);
         }
 
+        public static string PrefixedVariable(int blockNumber, string variableName)
+        {
+            return $"({blockNumber}) {variableName}";
+        }
     }
 }

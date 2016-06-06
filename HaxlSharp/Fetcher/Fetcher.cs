@@ -12,7 +12,7 @@ namespace HaxlSharp
         Task<Response> Fetch(BlockedRequest request);
         Task<IEnumerable<Response>> FetchBatch(IEnumerable<BlockedRequest> requests);
 
-        Task<A> Fetch<A>(Fetch<A> request, int nestLevel);
+        Task<A> Fetch<A>(Fetch<A> request);
     }
 
     public class DefaultFetcher : Fetcher
@@ -62,9 +62,9 @@ namespace HaxlSharp
             return resultArray;
         }
 
-        public async Task<A> Fetch<A>(Fetch<A> request, int nestLevel)
+        public async Task<A> Fetch<A>(Fetch<A> request)
         {
-            return await request.FetchWith(this, nestLevel);
+            return await request.FetchWith(this);
         }
     }
 }

@@ -1,84 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using static HaxlSharp.Haxl;
 
 namespace HaxlSharp
 {
-    public interface FetchResult
-    {
-
-        bool isBlocked { get; }
-
-    }
-
-
-    /// <summary>
-    /// Simulate existential types by packaging the request with its type information. 
-    /// </summary>
-    public class BlockedRequest : FetchResult
-    {
-        public readonly object TypedRequest;
-        public readonly Type RequestType;
-        public readonly string BindName;
-        public readonly TaskCompletionSource<object> Resolver;
-
-        public bool isBlocked
-        {
-            get
-            {
-                return true;
-            }
-        }
-
-        public BlockedRequest(object typedRequest, Type requestType, string bindName)
-        {
-            TypedRequest = typedRequest;
-            RequestType = requestType;
-            BindName = bindName;
-            Resolver = new TaskCompletionSource<object>();
-        }
-    }
-
-    public class ProjectResult : FetchResult
-    {
-        public readonly Action<Scope> PutResult;
-        public ProjectResult(Action<Scope> putResult)
-        {
-            PutResult = putResult;
-        }
-
-        public bool isBlocked
-        {
-            get
-            {
-                return false;
-            }
-        }
-    }
-
-    public class Response
-    {
-        public readonly object Value;
-        public readonly string BindName;
-        public readonly Type ResultType;
-        public Response(object value, Type resultType, string bindName)
-        {
-            Value = value;
-            ResultType = resultType;
-            BindName = bindName;
-        }
-    }
-
-    public interface Returns<A> { }
-
-    public interface CachableRequest<A> : Returns<A>
+    public abstract class CachableRequest<A> : Returns<A>
     {
         string CacheKey { get; }
     }
 
+    /// <summary>
+    /// Constructs a fetcher from request handlers.
+    /// </summary>
     public class FetcherBuilder
     {
         private readonly Dictionary<Type, Func<BlockedRequest, Response>> _fetchFunctions;

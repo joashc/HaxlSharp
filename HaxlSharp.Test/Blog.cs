@@ -16,9 +16,7 @@ namespace HaxlSharp.Test
         public int PostId { get; set; }
     }
 
-    public class FetchPosts : Returns<IEnumerable<int>>
-    {
-    }
+    public class FetchPosts : Returns<IEnumerable<int>> { }
 
     public class FetchPostInfo : Returns<PostInfo>
     {
@@ -29,9 +27,7 @@ namespace HaxlSharp.Test
         }
     }
 
-    public class GetTwoLatestPosts : Returns<Tuple<int, int>>
-    {
-    }
+    public class GetTwoLatestPosts : Returns<Tuple<int, int>> { }
 
     public class FetchPostContent : Returns<string>
     {
@@ -60,7 +56,7 @@ namespace HaxlSharp.Test
 
                 .FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
                 {
-                    return Enumerable.Range(0, 30);
+                    return Enumerable.Range(0, 50);
                 })
 
                 .FetchRequest<FetchPostInfo, PostInfo>(req =>
