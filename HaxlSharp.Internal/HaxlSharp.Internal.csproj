@@ -40,7 +40,27 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BlockedRequest.cs" />
+    <Compile Include="Expressions\ExpressionVarVisitor.cs" />
+    <Compile Include="Expressions\ParseExpression.cs" />
+    <Compile Include="Expressions\RebindToScope.cs" />
+    <Compile Include="Haxl.cs" />
+    <Compile Include="HaxlConstants.cs" />
+    <Compile Include="HaxlFetch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Types\Response.cs" />
+    <Compile Include="RunFetch.cs" />
+    <Compile Include="Scope.cs" />
+    <Compile Include="SplitQuery.cs" />
+    <Compile Include="Types\BindProjectPair.cs" />
+    <Compile Include="Types\BindProjectPairVars.cs" />
+    <Compile Include="Types\BindSegments.cs" />
+    <Compile Include="Types\BoundExpression.cs" />
+    <Compile Include="Types\ExpressionVariables.cs" />
+    <Compile Include="Types\FreeVariable.cs" />
+    <Compile Include="Types\Result.cs" />
+    <Compile Include="Types\Segment.cs" />
+    <Compile Include="Utility\Func.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

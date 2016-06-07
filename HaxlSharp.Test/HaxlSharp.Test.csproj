@@ -59,9 +59,13 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HaxlSharp\HaxlSharp.csproj">
-      <Project>{8a752cbd-3f03-4ff2-a2fa-709e50c870d3}</Project>
-      <Name>HaxlSharp</Name>
+    <ProjectReference Include="..\HaxlSharp.Core\HaxlSharp.Core.csproj">
+      <Project>{56487eb5-c699-4eaa-b384-c6f9e64635c5}</Project>
+      <Name>HaxlSharp.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\HaxlSharp.Fetcher\HaxlSharp.Fetcher.csproj">
+      <Project>{4d87351f-eee6-4361-b889-d8217eb314aa}</Project>
+      <Name>HaxlSharp.Fetcher</Name>
     </ProjectReference>
   </ItemGroup>
   <Choose>

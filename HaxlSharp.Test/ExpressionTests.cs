@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HaxlSharp.Internal;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,9 +23,9 @@ namespace HaxlSharp.Test
             Value = val;
         }
 
-        public override HaxlFetch ToHaxlFetch(string bindTo, Scope scope)
+        public override Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
-            return HaxlFetch.Pure(bindTo, Value);
+            return Haxl.Pure(bindTo, Value);
         }
     }
 

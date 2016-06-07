@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Diagnostics;
-using static HaxlSharp.Haxl;
+using static HaxlSharp.Internal.Base;
+using HaxlSharp.Internal;
 using System.Linq.Expressions;
 
 namespace HaxlSharp.Test
@@ -16,7 +17,9 @@ namespace HaxlSharp.Test
         public int PostId { get; set; }
     }
 
-    public class FetchPosts : Returns<IEnumerable<int>> { }
+    public class FetchPosts : Returns<ShowList<int>> { }
+
+    public class FetchDuplicatePosts : Returns<ShowList<int>> { }
 
     public class FetchPostInfo : Returns<PostInfo>
     {
@@ -54,9 +57,14 @@ namespace HaxlSharp.Test
         {
             return FetcherBuilder.New()
 
-                .FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
+                .FetchRequest<FetchPosts, ShowList<int>>(_ =>
                 {
-                    return Enumerable.Range(0, 50);
+                    return ShowList(Enumerable.Range(0, 50));
+                })
+
+                .FetchRequest<FetchDuplicatePosts, ShowList<int>>(_ =>
+                {
+                    return ShowList(Enumerable.Repeat(1, 10));
                 })
 
                 .FetchRequest<FetchPostInfo, PostInfo>(req =>
@@ -88,7 +96,12 @@ namespace HaxlSharp.Test
             return new GetTwoLatestPosts().ToFetch();
         }
 
-        public static Fetch<IEnumerable<int>> FetchAllPostIds()
+        public static Fetch<ShowList<int>> FetchDuplicatePosts()
+        {
+            return new FetchDuplicatePosts().ToFetch();
+        }
+
+        public static Fetch<ShowList<int>> FetchAllPostIds()
         {
             return new FetchPosts().ToFetch();
         }
