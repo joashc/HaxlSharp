@@ -44,7 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Fetcher.cs" />
+    <Compile Include="DefaultFetcher.cs" />
     <Compile Include="FetcherBuilder.cs" />
     <Compile Include="HashedRequestKey.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

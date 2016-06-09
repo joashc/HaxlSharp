@@ -9,10 +9,13 @@ namespace HaxlSharp.Internal
     {
         public readonly LambdaExpression Expression;
         public readonly string BindVariable;
-        public BoundExpression(LambdaExpression expression, string bindVariable)
+        public readonly int BlockNumber;
+
+        public BoundExpression(LambdaExpression expression, string bindVariable, int blockNumber)
         {
             Expression = expression;
             BindVariable = bindVariable;
+            BlockNumber = blockNumber;
         }
     }
 }

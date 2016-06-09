@@ -1,12 +1,8 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using System.Linq;
-using System.Diagnostics;
 using static HaxlSharp.Internal.Base;
 using HaxlSharp.Internal;
-using System.Linq.Expressions;
 
 namespace HaxlSharp.Test
 {
@@ -130,7 +126,7 @@ namespace HaxlSharp.Test
         public static Fetch<PostDetails> GetPostDetails(int postId)
         {
             var x = from info in FetchPostInfo(postId)
-                    from content in FetchPostContent(info.PostId)
+                    from content in FetchPostContent(postId)
                     select new PostDetails(info, content);
             return x;
         }

@@ -15,14 +15,17 @@ namespace HaxlSharp
     /// <fetch>
     /// This is a free monad that leaves its expression tree open for inspection.
     /// </fetch>
-    public interface Fetch<A>
+    public interface Fetch<A> : Fetchable
     {
         [EditorBrowsable(EditorBrowsableState.Never)]
         IEnumerable<BindProjectPair> CollectedExpressions { get; }
 
         [EditorBrowsable(EditorBrowsableState.Never)]
         LambdaExpression Initial { get; }
+    }
 
+    public interface Fetchable
+    {
         [EditorBrowsable(EditorBrowsableState.Never)]
         Haxl ToHaxlFetch(string bindTo, Scope scope);
     }
@@ -47,8 +50,8 @@ namespace HaxlSharp
 
         public Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
-            var bindSplit = QuerySplitter.Bind(CollectedExpressions, Initial);
-            return SplitQuery.ToFetch(bindSplit, bindTo, new Scope(scope));
+            var bindSplit = SplitApplicative.SplitBind(CollectedExpressions, Initial);
+            return HaxlApplicative.ToFetch(bindSplit, bindTo, new Scope(scope));
         }
     }
 
@@ -104,7 +107,7 @@ namespace HaxlSharp
                                 var result = task.Result;
                                 return scope.Add(bindTo, result);
                             });
-                        else return Blocked.New(
+                        return Blocked.New(
                             new List<BlockedRequest>(),
                             DoneFromTask(task)
                         );
@@ -133,13 +136,12 @@ namespace HaxlSharp
         public override Haxl ToHaxlFetch(string bindTo, Scope parentScope)
         {
             var childScope = new Scope(parentScope);
-            var fetches = List.Select(Bind)
-                              .Select((f, i) => f.ToHaxlFetch(i.ToString(), childScope));
-
+            var binds = List.Select(Bind).ToList();
+            var fetches = binds.Select((f, i) => f.ToHaxlFetch(i.ToString(), childScope)).ToList();
             var concurrent = fetches.Aggregate((f1, f2) => f1.Applicative(f2));
             return concurrent.Bind(scope => Haxl.FromFunc(cache => Done.New(_ =>
             {
-                var values = scope.ShallowValues.Select(v => (B)v);
+                var values = scope.ShallowValues.Select(v => (B)v).ToList();
                 return scope.WriteParent(bindTo, values);
             }
             )));
@@ -177,7 +179,17 @@ namespace HaxlSharp
     {
         public static Fetch<B> Select<A, B>(this Fetch<A> self, Expression<Func<A, B>> f)
         {
-            return new Select<A, B>(self, f);
+            var isLet = LetExpression.IsLetExpression(f);
+            if (isLet)
+            {
+                Expression<Func<A, Fetch<A>>> letBind = _ => self;
+                var letProject = LetExpression.RewriteLetExpression(f);
+                var letPair = new BindProjectPair(letBind, letProject);
+                return new Bind<A, B, B>(self.CollectedExpressions.Append(letPair), self);
+            }
+            Expression<Func<A, Fetch<A>>> bind = _ => self;
+            var newBinds = new BindProjectPair(bind, f);
+            return new Bind<A, B, B>(self.CollectedExpressions.Append(newBinds), self);
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind, Expression<Func<A, B, C>> project)

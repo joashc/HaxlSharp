@@ -16,11 +16,11 @@ namespace HaxlSharp.Internal
     /// It will be desugared into:
     ///
     /// a.SelectMany(                       // Line (1) Initial
-    ///     x => b,                         // Line (2) Bind 
+    ///     x => b,                         // Line (2) SplitBind 
     ///     (x, y) => new { x, y }          // Line (2) Project
     ///  )     
     ///  .SelectMany(
-    ///     ti0 => c(ti0.x),                // Line (3) Bind
+    ///     ti0 => c(ti0.x),                // Line (3) SplitBind
     ///     (ti0, z) => (ti0.x, ti0.y, z)   // Line (4) Final Project
     ///  );
     /// 

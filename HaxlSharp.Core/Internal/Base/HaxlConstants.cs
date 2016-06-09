@@ -14,6 +14,19 @@ namespace HaxlSharp.Internal
         public const string TRANSPARENT_PREFIX = "<>h__Trans";
 
         /// <summary>
+        /// We mark let expressions with this prefix.
+        /// </summary>
+        public const string LET_PREFIX = "<>HAXL_LET";
+
+        /// <summary>
+        /// Annotate let arguments with the let prefix.
+        /// </summary>
+        public static string PrefixLet(string letVarName)
+        {
+            return $"{LET_PREFIX}{letVarName}";
+        }
+
+        /// <summary>
         /// Combines variable names with block numbers.
         /// </summary>
         public static string PrefixedVariable(int blockNumber, string variableName)

@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
 namespace HaxlSharp.Internal
 {
+    /// <summary>
+    /// Simple pretty printing wrapper around IEnumerable.
+    /// </summary>
     public class ShowList<A> : IEnumerable<A>
     {
         public readonly IEnumerable<A> List;
@@ -27,8 +29,8 @@ namespace HaxlSharp.Internal
             builder.Append("[ ");
             var first = List.First();
             var rest = List.Skip(1);
-            builder.Append(first.ToString());
-            foreach (var item in List)
+            builder.Append(first);
+            foreach (var item in rest)
             {
                 builder.Append($", {item}");
             }

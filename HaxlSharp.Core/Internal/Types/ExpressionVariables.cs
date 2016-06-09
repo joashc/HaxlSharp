@@ -7,13 +7,13 @@ namespace HaxlSharp.Internal
     /// </summary>
     public class ExpressionVariables
     {
-        public readonly List<FreeVariable> Free;
+        public readonly bool BindsNonTransparentParam;
         public readonly List<string> Bound;
         public readonly List<string> ParameterNames;
 
-        public ExpressionVariables(List<FreeVariable> free, List<string> bound, List<string> parameterNames)
+        public ExpressionVariables(bool bindsNonTransparentParam, List<string> bound, List<string> parameterNames)
         {
-            Free = free;
+            BindsNonTransparentParam = bindsNonTransparentParam;
             Bound = bound;
             ParameterNames = parameterNames;
         }

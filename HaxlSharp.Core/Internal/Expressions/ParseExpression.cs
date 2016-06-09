@@ -13,16 +13,23 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static ExpressionVariables GetExpressionVariables(LambdaExpression bind)
         {
-            var visitor = new ExpressionVarVisitor();
+            var visitor = new ParameterAccessVisitor();
             visitor.Visit(bind.Body);
-            var frees = visitor.Parameters.SelectMany(MemberNames).ToList();
-            var bound = visitor.Arguments.Select(MemberAccess).Where(m => !m.Name.StartsWith(TRANSPARENT_PREFIX) && m.FromTransparent).Select(f => f.Name).ToList();
-            var paramVisitor = new ExpressionVarVisitor();
+            var bound = visitor.MemberAccesses
+                               .Select(MemberAccess)
+                               .Where(m => !m.Name.StartsWith(TRANSPARENT_PREFIX) && m.FromTransparent)
+                               .Select(f => f.Name)
+                               .ToList();
+
+            var paramVisitor = new ParameterAccessVisitor();
             foreach (var param in bind.Parameters)
             {
                 paramVisitor.Visit(param);
             }
-            return new ExpressionVariables(frees, bound, paramVisitor.Parameters.SelectMany(MemberNames).Select(f => f.Name).ToList());
+            var bindsNonTransparent = bind.Parameters.Any(
+                bindParam =>
+                    !IsTransparent(bindParam) && BindsNonTransparentParam(visitor.ParameterAccesses, bindParam.Name));
+            return new ExpressionVariables(bindsNonTransparent, bound, paramVisitor.ParameterAccesses.SelectMany(MemberNames).Select(f => f.Name).ToList());
         }
 
         /// <summary>
@@ -42,31 +49,32 @@ namespace HaxlSharp.Internal
             return new List<FreeVariable> { new FreeVariable(parameter.Name, false) };
         }
 
+        private static bool BindsNonTransparentParam(List<ParameterExpression> parameterExpressions, string paramName)
+        {
+            return parameterExpressions.Any(pe => pe.Name == paramName);
+        }
+
+
         /// <summary>
         /// Checks if a given member expression ultimately points to a transparent identifier.
         /// </summary>
         public static bool IsFromTransparent(MemberExpression expression)
         {
             if (expression.Expression == null) return false;
-            if (expression.Expression.NodeType == ExpressionType.Parameter)
+            switch (expression.Expression.NodeType)
             {
-                return ((ParameterExpression)expression.Expression).Name.StartsWith(TRANSPARENT_PREFIX);
-            }
-            if (expression.Expression.NodeType == ExpressionType.Constant)
-            {
-                return false;
+                case ExpressionType.Parameter:
+                    return IsTransparent((ParameterExpression)expression.Expression);
+                case ExpressionType.Constant:
+                    return false;
             }
             return IsFromTransparent(expression.Expression as MemberExpression);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        public static Type GetTransMemberType(MemberExpression expression)
+
+        public static bool IsTransparent(ParameterExpression expression)
         {
-            if (!IsFromTransparent(expression)) throw new ArgumentException("Must be called on transparent member accessor");
-            dynamic member = expression.Member;
-            return member.PropertyType;
+            return expression.Name.StartsWith(TRANSPARENT_PREFIX);
         }
 
         /// <summary>
@@ -82,7 +90,23 @@ namespace HaxlSharp.Internal
         /// </summary>
         private static FreeVariable MemberAccess(MemberExpression argument)
         {
-            return new FreeVariable(argument.Member.Name, IsFromTransparent(argument));
+            //return new FreeVariable(argument.Member.Name, false);
+            var fromTransparent = IsFromTransparent(argument);
+            if (!fromTransparent) return new FreeVariable(argument.Member.Name, false);
+            switch (argument.Expression.NodeType)
+            {
+                case ExpressionType.Parameter:
+                    return new FreeVariable(argument.Member.Name, true);
+                case ExpressionType.MemberAccess:
+                {
+
+                    var member = (MemberExpression) argument.Expression;
+                    return member.Member.Name.StartsWith(TRANSPARENT_PREFIX) 
+                            ? new FreeVariable(argument.Member.Name, true) 
+                            : MemberAccess(member);
+                }
+            }
+            throw new ArgumentException("Error getting transparent identifier name");
         }
     }
 }

@@ -37,6 +37,12 @@ namespace HaxlSharp.Internal
             return (LambdaExpression)base.Visit(newExpression);
         }
 
+        public static LambdaExpression Rebind(BoundExpression expression)
+        {
+            var rebinder = new RebindToScope {BlockCount = expression.BlockNumber};
+            return rebinder.Rebind(expression.Expression);
+        }
+
         /// <summary>
         /// We only want to rewrite transparent identifier accessors.
         /// </summary>
@@ -44,8 +50,6 @@ namespace HaxlSharp.Internal
         {
             if (ParseExpression.IsFromTransparent(node) && !ParseExpression.IsTransparentMember(node))
             {
-                var memberType = ParseExpression.GetTransMemberType(node);
-                var memberName = node.Member.Name;
                 return RewritePropertyAccess(node);
             }
             return base.VisitMember(node);

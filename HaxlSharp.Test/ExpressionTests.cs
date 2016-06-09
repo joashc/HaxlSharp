@@ -41,27 +41,26 @@ namespace HaxlSharp.Test
         public static Func<int, TestFetch<int>> d = i => new TestFetch<int>(i);
         public static Nested nested = new Nested();
 
-        public static int CountAt(BindSegments split, int i)
+        public static int CountAt(List<ApplicativeGroup> split, int i)
         {
-            if (split is BindSegments) return ( split).Segments.ElementAt(i).BoundExpressions.Count();
-            return 0;
+            return split.ElementAt(i).Expressions.Count();
         }
 
-        public static int SplitCount(BindSegments split)
+        public static int SplitCount(List<ApplicativeGroup> split)
         {
-            return split.Segments.Where(s => !s.IsProjectGroup).Count();
+            return split.Count(s => s.Expressions.Any(e => e.Match(bind => true, project => false)));
         }
 
-        public static int ProjectCount(BindSegments split)
+        public static int ProjectCount(List<ApplicativeGroup> split)
         {
-            return split.Segments.Where(s => s.IsProjectGroup).Count();
+            return split.Count(s => s.Expressions.Any(e => e.Match(bind => false, project => true)));
         }
 
-        public static BindSegments Split<A>(Fetch<A> fetch)
+        public static List<ApplicativeGroup> Split<A>(Fetch<A> fetch)
         {
             var type = fetch.GetType();
             Assert.IsTrue(type.GetGenericTypeDefinition() == typeof(Bind<,,>));
-            return QuerySplitter.Bind(fetch.CollectedExpressions, fetch.Initial);
+            return SplitApplicative.SplitBind(fetch.CollectedExpressions, fetch.Initial);
         }
 
         [TestMethod]
@@ -92,6 +91,22 @@ namespace HaxlSharp.Test
             Assert.AreEqual(1, CountAt(split, 2)); 
             Assert.AreEqual(2, CountAt(split, 3));
             Assert.AreEqual(1, CountAt(split, 4));
+        }
+
+        [TestMethod]
+        public void SplitWithApplicativeProject()
+        {
+            var nested = from x in a
+                         from y in b
+                         select 3;
+
+            var fetch = from x in nested
+                        from y in a
+                        from z in b
+                        select x + y + z;
+
+            var split = Split(fetch);
+            Assert.AreEqual(1, SplitCount(split));
         }
 
         [TestMethod]
@@ -145,9 +160,10 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              select x + y + z;
             var split = Split(expression);
-            Assert.AreEqual(2, SplitCount(split));
+            Assert.AreEqual(3, SplitCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(2, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 2));
         }
 
         [TestMethod]
@@ -229,6 +245,10 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Split(expression);
+            Assert.AreEqual(3, SplitCount(split));
+            Assert.AreEqual(1, CountAt(split, 0));
+            Assert.AreEqual(1, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 2));
         }
 
 
@@ -243,6 +263,10 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Split(expression);
+            Assert.AreEqual(3, SplitCount(split));
+            Assert.AreEqual(1, CountAt(split, 0));
+            Assert.AreEqual(1, CountAt(split, 1));
+            Assert.AreEqual(1, CountAt(split, 2));
         }
 
         [TestMethod]
@@ -250,6 +274,10 @@ namespace HaxlSharp.Test
         {
             var oneLine = from x in new TestFetch<int>(3)
                           select x + 1;
+            var split = Split(oneLine);
+            Assert.AreEqual(1, SplitCount(split));
+            Assert.AreEqual(2, CountAt(split, 0));
+            Assert.AreEqual(1, CountAt(split, 1));
         }
 
         [TestMethod]

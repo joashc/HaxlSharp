@@ -23,6 +23,11 @@ namespace HaxlSharp.Internal
             return new ShowList<A>(list);
         }
 
+        public static bool Not(bool b)
+        {
+            return !b;
+        }
+
         public static Unit Unit = new Unit();
     }
 }

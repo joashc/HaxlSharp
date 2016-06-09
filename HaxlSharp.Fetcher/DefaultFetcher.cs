@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using HaxlSharp;
 using HaxlSharp.Internal;
 using System.Threading.Tasks;
 

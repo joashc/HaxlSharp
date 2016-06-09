@@ -31,10 +31,46 @@ namespace HaxlSharp.Test
         }
 
         [TestMethod]
+        public async Task SelectFetch()
+        {
+            var fetch = FetchAllPostIds();
+            var postIds = await fetch.FetchWith(fetcher, cache);
+            var first = postIds.First();
+
+            var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
+                         select ids.First();
+            var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
+            Assert.AreEqual(first + 1, firstPlus1);
+        }
+
+        [TestMethod]
+        public async Task SelectLetFetch()
+        {
+            var fetch = FetchAllPostIds();
+            var postIds = await fetch.FetchWith(fetcher, cache);
+            var first = postIds.First();
+
+            var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
+                         let first1 = ids.First()
+                         select first1;
+            var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
+            Assert.AreEqual(first + 1, firstPlus1);
+        }
+
+        [TestMethod]
         public async Task SequentialFetch_ShouldHaveTwoBatches()
         {
             var firstPostInfo = from postIds in FetchAllPostIds()
                                 from firstInfo in FetchPostInfo(postIds.First())
+                                select firstInfo;
+            var result = await firstPostInfo.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task SequentialFetch_ShouldHaveTwoBatchesRepeat()
+        {
+            var firstPostInfo = from postIds in FetchAllPostIds()
+                                from firstInfo in FetchPostInfo(postIds.Skip(1).First())
                                 select firstInfo;
             var result = await firstPostInfo.FetchWith(fetcher, cache);
         }
@@ -49,6 +85,25 @@ namespace HaxlSharp.Test
             var result = await getAllPostsInfo.FetchWith(fetcher, cache);
         }
 
+        [TestMethod]
+        public async Task Sequence_ShouldBeApplicativeAgain()
+        {
+            var getAllPostsInfo =
+                from postIds in FetchAllPostIds()
+                from postInfo in postIds.SelectFetch(GetPostDetails)
+                select postInfo;
+            var result = await getAllPostsInfo.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task Sequence_ShouldBeApplicativeAgainAddOne()
+        {
+            var getAllPostsInfo =
+                from postIds in FetchAllPostIds()
+                from postInfo in postIds.Select(x => x + 1).SelectFetch(GetPostDetails)
+                select postInfo;
+            var result = await getAllPostsInfo.FetchWith(fetcher, cache);
+        }
 
         [TestMethod]
         public async Task SharedDependency()
@@ -71,11 +126,40 @@ namespace HaxlSharp.Test
         [TestMethod]
         public async Task LetNotation_Applicative()
         {
+
             var id = 0;
             var fetch = from postInfo in FetchPostInfo(id)
-                        let id2 = 5
+                        let id2 = 1 + postInfo.PostId
                         from postInfo2 in FetchPostInfo(id2)
-                        select postInfo2;
+                        select postInfo2.PostTopic + id2;
+
+            var result = await fetch.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task FinalLetNotation_Applicative()
+        {
+
+            var id = 0;
+            var fetch = from postInfo in FetchPostInfo(id)
+                        from postInfo2 in FetchPostInfo(1)
+                        let id2 = 1 + postInfo.PostId
+                        select postInfo2.PostTopic + id2;
+
+            var result = await fetch.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task MultipleLetNotation_Applicative()
+        {
+
+            var id = 0;
+            var let = FetchPostInfo(id).Select(info => info.PostId);
+            var fetch = from postInfo in FetchPostInfo(id)
+                        let id2 = 1 + postInfo.PostId
+                        let id3 = 4
+                        from postInfo2 in FetchPostInfo(id2)
+                        select postInfo2.PostTopic + id2 + id3;
 
             var result = await fetch.FetchWith(fetcher, cache);
         }
@@ -88,7 +172,75 @@ namespace HaxlSharp.Test
                         from second in GetPostDetails(latest.Item2)
                         select new List<PostDetails> { first, second };
             var result = await fetch.FetchWith(fetcher, cache);
-            ;
+        }
+
+        [TestMethod]
+        public async Task DuplicateNestedNames()
+        {
+            var nested = from x in FetchTwoLatestPosts()
+                         from z in FetchTwoLatestPosts()
+                         from y in GetPostDetails(x.Item1)
+                         select $"[Nested: {y.Content}]";
+
+            var nested2 = from x in nested
+                          from y in nested
+                          select $"[Nested2: [ {x}, {y} ]";
+            var global = new { x = 3 };
+
+            var fetch = from x in nested2
+                        from y in nested2
+                        from z in nested
+                        let id2 = global.x
+                        from n in nested
+                        select $"Fetch: [ {x}, {y} ]";
+            var result = await fetch.FetchWith(fetcher, cache);
+            Debug.WriteLine(result);
+            Assert.AreEqual(
+                "Fetch: [ [Nested2: [ [Nested: Post 0], [Nested: Post 0] ], [Nested2: [ [Nested: Post 0], [Nested: Post 0] ] ]",
+                result
+            );
+
+        }
+
+        [TestMethod]
+        public async Task NoNesting()
+        {
+            var fetch = from x in FetchTwoLatestPosts()
+                        from y in FetchTwoLatestPosts()
+                        from z in FetchTwoLatestPosts()
+                        from n in FetchTwoLatestPosts()
+                        select $"Fetch: [ {x}, {y} ]";
+            var result = await fetch.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task NestedLet()
+        {
+            var nested = from x in GetPostDetails(3)
+                         from y in GetPostDetails(4)
+                         select $"[ {x.Content}, {y.Content} ]";
+            var fetch = from x in nested
+                        let id = 3
+                        from y in GetPostDetails(id)
+                        select x + y.Content;
+            var result = await fetch.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task DuplicateNested()
+        {
+            var nested = from x in GetPostDetails(3)
+                         from y in GetPostDetails(4)
+                         select $"[ {x.Content}, {y.Content} ]";
+
+            var nested2 = from x in nested
+                          from z in nested
+                          select $"{x}, {z}";
+
+            var fetch = from x in nested2
+                        from y in nested
+                        select $"{x}, {y}";
+            var result = await fetch.FetchWith(fetcher, cache);
         }
 
         [TestMethod]

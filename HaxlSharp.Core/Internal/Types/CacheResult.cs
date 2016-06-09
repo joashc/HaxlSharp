@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace HaxlSharp.Internal
 {
+    /// <summary>
+    /// The result of a cache lookup. 
+    /// </summary>
     public abstract class CacheResult
     {
         public abstract X Match<X>(Func<Unit, X> notFound, Func<BlockedRequest, X> found);
@@ -16,6 +15,9 @@ namespace HaxlSharp.Internal
         }
     }
 
+    /// <summary>
+    /// An item matching the cache key was not found.
+    /// </summary>
     public class NotFound : CacheResult
     {
         public override X Match<X>(Func<Unit, X> notFound, Func<BlockedRequest, X> found)
@@ -24,6 +26,9 @@ namespace HaxlSharp.Internal
         }
     }
 
+    /// <summary>
+    /// The item matching the cache key.
+    /// </summary>
     public class Found : CacheResult
     {
         private readonly BlockedRequest _blocked;
