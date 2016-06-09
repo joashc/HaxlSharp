@@ -39,7 +39,7 @@ namespace HaxlSharp.Internal
             }
             var bindVars = ParseExpression.GetExpressionVariables(pair.Bind);
             var projectVars = ParseExpression.GetExpressionVariables(project);
-            return new BindProjectStatement(pair, bindVars, projectVars);
+            return new BindProjectStatement(pair, bindVars, projectVars) {IsSelect = pair.IsSelect};
         }
 
 
@@ -176,7 +176,7 @@ namespace HaxlSharp.Internal
                         var splitBefore = currentlyBindingVars != null && ShouldSplit(currentlyBindingVars, boundInGroup);
                         if (splitBefore) split();
                         if (first) currentApplicative.Add(new BindStatement(boundExpression(currentlyBinding, prefixed)));
-                        else if (!currentlyBinding.Parameters.Any(ParseExpression.IsTransparent)) currentApplicative.Add(new ProjectStatement(boundExpression(currentlyBinding, prefixed)));
+                        else if (!LetExpression.IsLetExpression(currentlyBinding)) currentApplicative.Add(new ProjectStatement(boundExpression(currentlyBinding, prefixed)));
 
 
                         boundInGroup.Add(let.Variables.ParameterNames.First());
@@ -185,6 +185,7 @@ namespace HaxlSharp.Internal
                         {
                             split();
                         }
+                        
                         boundInGroup.Add(let.Name);
                         currentApplicative.Add(
                             new ProjectStatement(boundExpression(let.Expression, PrefixedVariable(blockNumber, let.Name))));

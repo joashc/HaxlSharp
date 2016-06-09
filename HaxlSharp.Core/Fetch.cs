@@ -36,17 +36,17 @@ namespace HaxlSharp
     [EditorBrowsable(EditorBrowsableState.Never)]
     public class Bind<A, B, C> : Fetch<C>
     {
-        private readonly IEnumerable<BindProjectPair> _binds;
-        public IEnumerable<BindProjectPair> CollectedExpressions { get { return _binds; } }
+        public IEnumerable<BindProjectPair> CollectedExpressions { get; }
+
         public readonly Fetch<A> Fetch;
 
         public Bind(IEnumerable<BindProjectPair> binds, Fetch<A> expr)
         {
-            _binds = binds;
+            CollectedExpressions = binds;
             Fetch = expr;
         }
 
-        public LambdaExpression Initial { get { return Fetch.Initial; } }
+        public LambdaExpression Initial => Fetch.Initial;
 
         public Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
@@ -61,8 +61,8 @@ namespace HaxlSharp
     public abstract class FetchNode<A> : Fetch<A>
     {
         private static readonly IEnumerable<BindProjectPair> emptyList = new List<BindProjectPair>();
-        public IEnumerable<BindProjectPair> CollectedExpressions { get { return emptyList; } }
-        public LambdaExpression Initial { get { return Expression.Lambda(Expression.Constant(this)); } }
+        public IEnumerable<BindProjectPair> CollectedExpressions => emptyList;
+        public LambdaExpression Initial => Expression.Lambda(Expression.Constant(this));
         public abstract Haxl ToHaxlFetch(string bindTo, Scope scope);
     }
 
@@ -89,34 +89,35 @@ namespace HaxlSharp
             {
                 var cacheResult = cache.Lookup(request);
                 return cacheResult.Match<Result>
-                (
-                    notFound =>
-                    {
-                        var blocked = new BlockedRequest(request, request.GetType(), bindTo);
-                        cache.Insert(request, blocked);
-                        return Blocked.New(
-                            new List<BlockedRequest> { blocked },
-                            DoneFromTask(blocked.Resolver.Task)
-                        );
-                    },
-                    found =>
-                    {
-                        var task = found.Resolver.Task;
-                        if (task.IsCompleted) return Done.New(_ =>
-                            {
-                                var result = task.Result;
-                                return scope.Add(bindTo, result);
-                            });
-                        return Blocked.New(
-                            new List<BlockedRequest>(),
-                            DoneFromTask(task)
-                        );
-                    }
-               );
+                    (
+                        notFound =>
+                        {
+                            var blocked = new BlockedRequest(request, request.GetType(), bindTo);
+                            cache.Insert(request, blocked);
+                            return Blocked.New(
+                                new List<BlockedRequest> {blocked},
+                                DoneFromTask(blocked.Resolver.Task)
+                                );
+                        },
+                        found =>
+                        {
+                            var task = found.Resolver.Task;
+                            if (task.IsCompleted)
+                                return Done.New(_ =>
+                                {
+                                    var result = task.Result;
+                                    return scope.Add(bindTo, result);
+                                });
+                            return Blocked.New(
+                                new List<BlockedRequest>(),
+                                DoneFromTask(task)
+                                );
+                        }
+                    );
             });
         }
 
-        public Type RequestType { get { return request.GetType(); } }
+        public Type RequestType => request.GetType();
     }
 
     /// <summary>
@@ -149,6 +150,25 @@ namespace HaxlSharp
     }
 
     /// <summary>
+    /// Wraps the value in a Fetch monad.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public class FetchResult<A> : FetchNode<A>
+    {
+        public readonly A Value;
+
+        public FetchResult(A value)
+        {
+            Value = value;
+        }
+
+        public override Haxl ToHaxlFetch(string bindTo, Scope scope)
+        {
+            return Haxl.FromFunc(cache => Done.New(_ => scope.Add(bindTo, Value)));
+        }
+    }
+
+    /// <summary>
     /// Maps the result of the fetch with given function.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -166,8 +186,17 @@ namespace HaxlSharp
         {
             return Fetch.ToHaxlFetch(bindTo, parentScope).Map(scope =>
             {
-                var value = (A)scope.GetValue(bindTo);
-                return scope.WriteParent(bindTo, Map.Compile()(value));
+                var newScope = scope;
+                if (scope.InScope(bindTo))
+                {
+                    var value = scope.GetValue(bindTo);
+                    newScope = new SelectScope(value, scope);
+                }
+
+                var blockNumber = newScope.GetLatestBlockNumber();
+                var rebinder = new RebindToScope() { BlockCount = blockNumber};
+                var rewritten = rebinder.Rebind(Map);
+                return scope.Add(bindTo, rewritten.Compile().DynamicInvoke(newScope));
             });
         }
     }
@@ -180,16 +209,12 @@ namespace HaxlSharp
         public static Fetch<B> Select<A, B>(this Fetch<A> self, Expression<Func<A, B>> f)
         {
             var isLet = LetExpression.IsLetExpression(f);
-            if (isLet)
-            {
-                Expression<Func<A, Fetch<A>>> letBind = _ => self;
-                var letProject = LetExpression.RewriteLetExpression(f);
-                var letPair = new BindProjectPair(letBind, letProject);
-                return new Bind<A, B, B>(self.CollectedExpressions.Append(letPair), self);
-            }
-            Expression<Func<A, Fetch<A>>> bind = _ => self;
-            var newBinds = new BindProjectPair(bind, f);
-            return new Bind<A, B, B>(self.CollectedExpressions.Append(newBinds), self);
+            if (!isLet) return new Select<A, B>(self, f);
+
+            Expression<Func<A, Fetch<A>>> letBind = _ => self;
+            var letProject = LetExpression.RewriteLetExpression(f);
+            var letPair = new BindProjectPair(letBind, letProject);
+            return new Bind<A, B, B>(self.CollectedExpressions.Append(letPair), self);
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind, Expression<Func<A, B, C>> project)

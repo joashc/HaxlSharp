@@ -16,7 +16,7 @@ namespace HaxlSharp.Internal
 
         public static Haxl FromFunc(Func<HaxlCache, Result> resultFunc)
         {
-            return new Haxl(new Func<HaxlCache, Result>(resultFunc));
+            return new Haxl(resultFunc);
         }
 
         /// <summary>
@@ -27,9 +27,7 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static Haxl Pure(string bindTo, object value)
         {
-            return FromFunc(cache =>
-                Done.New(scope => scope.Add(bindTo, value))
-            );
+            return FromFunc(cache => Done.New(scope => scope.Add(bindTo, value)));
         }
 
         /// <summary>
@@ -50,14 +48,14 @@ namespace HaxlSharp.Internal
 
         public Haxl Map(Func<Scope, Scope> addResult)
         {
-            return new Haxl(new Func<HaxlCache, Result>(cache =>
+            return new Haxl(cache =>
             {
                 var result = Result(cache);
                 return result.Match<Result>(
                     done => Done.New(compose(addResult, done.AddToScope)),
                     blocked => Blocked.New(blocked.BlockedRequests, blocked.Continue.Map(addResult))
                 );
-            }));
+            });
         }
     }
 

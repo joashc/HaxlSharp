@@ -1,4 +1,7 @@
 ﻿
+using System;
+using System.Text.RegularExpressions;
+
 namespace HaxlSharp.Internal
 {
     public static partial class Base
@@ -32,6 +35,15 @@ namespace HaxlSharp.Internal
         public static string PrefixedVariable(int blockNumber, string variableName)
         {
             return $"({blockNumber}) {variableName}";
+        }
+
+        public static int GetBlockNumber(string bindTo)
+        {
+            if (bindTo == HAXL_RESULT_NAME) return 0;
+            var regex = @"^\((\d+)\).*$";
+            var match = Regex.Match(bindTo, regex);
+            if (match.Groups.Count < 2)  throw new ArgumentException("Invalid bind variable name");
+            return int.Parse(match.Groups[1].Value);
         }
     }
 }

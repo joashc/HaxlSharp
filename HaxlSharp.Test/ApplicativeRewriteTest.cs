@@ -38,6 +38,21 @@ namespace HaxlSharp.Test
             var first = postIds.First();
 
             var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
+                         from somethingElse in FetchAllPostIds()
+                         select ids.First();
+            var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
+            Assert.AreEqual(first + 1, firstPlus1);
+        }
+
+        [TestMethod]
+        public async Task SelectFetchFinal()
+        {
+            var fetch = FetchAllPostIds();
+            var postIds = await fetch.FetchWith(fetcher, cache);
+            var first = postIds.First();
+
+            cache = new HaxlCache(new HashedRequestKey());
+            var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
                          select ids.First();
             var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
             Assert.AreEqual(first + 1, firstPlus1);
@@ -50,11 +65,31 @@ namespace HaxlSharp.Test
             var postIds = await fetch.FetchWith(fetcher, cache);
             var first = postIds.First();
 
+            cache = new HaxlCache(new HashedRequestKey());
             var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
                          let first1 = ids.First()
+                         from ids2 in FetchAllPostIds()
                          select first1;
             var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
             Assert.AreEqual(first + 1, firstPlus1);
+        }
+
+        [TestMethod]
+        public async Task SelectLetFetchExtended()
+        {
+            var fetch = FetchAllPostIds();
+            var postIds = await fetch.FetchWith(fetcher, cache);
+            var first = postIds.First();
+
+            cache = new HaxlCache(new HashedRequestKey());
+
+            var fetch1 = from ids in FetchAllPostIds().Select(list => list.Select(x => x + 1))
+                         let first1 = ids.First()
+                         from ids2 in FetchAllPostIds()
+                         from ids3 in FetchAllPostIds()
+                         select first1 + ids.First();
+            var firstPlus1 = await fetch1.FetchWith(fetcher, cache);
+            Assert.AreEqual(first + 1 + 1, firstPlus1);
         }
 
         [TestMethod]
@@ -144,6 +179,20 @@ namespace HaxlSharp.Test
             var fetch = from postInfo in FetchPostInfo(id)
                         from postInfo2 in FetchPostInfo(1)
                         let id2 = 1 + postInfo.PostId
+                        select postInfo2.PostTopic + id2;
+
+            var result = await fetch.FetchWith(fetcher, cache);
+        }
+
+        [TestMethod]
+        public async Task FinalLetNotation_ApplicativeExtended()
+        {
+
+            var id = 0;
+            var fetch = from postInfo in FetchPostInfo(id)
+                        from postInfo2 in FetchPostInfo(1)
+                        from postInfo3 in FetchPostInfo(postInfo2.PostId)
+                        let id2 = 1 + postInfo.PostId + postInfo3.PostId
                         select postInfo2.PostTopic + id2;
 
             var result = await fetch.FetchWith(fetcher, cache);

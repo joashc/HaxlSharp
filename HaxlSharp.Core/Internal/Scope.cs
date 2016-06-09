@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using static HaxlSharp.Internal.Base;
 
 namespace HaxlSharp.Internal
 {
@@ -33,7 +32,7 @@ namespace HaxlSharp.Internal
 
         public bool IsRoot => parentScope == null;
 
-        public object GetValue(string variableName)
+        public virtual object GetValue(string variableName)
         {
             if (boundVariables.ContainsKey(variableName)) return boundVariables[variableName];
             if (parentScope == null) throw new ArgumentException($"No variable named '{variableName}' in scope.");
@@ -53,6 +52,12 @@ namespace HaxlSharp.Internal
             return this;
         }
 
+        public int GetLatestBlockNumber()
+        {
+            if (!Keys.Any()) return 0;
+            return Keys.Select(GetBlockNumber).Max();
+        }
+
         public Scope WriteParent(string name, object value)
         {
             if (parentScope == null) return Add(name, value);
@@ -69,5 +74,27 @@ namespace HaxlSharp.Internal
         }
 
         public IEnumerable<object> ShallowValues => boundVariables.Values;
+    }
+
+    public class SelectScope : Scope
+    {
+        private readonly object _selectValue;
+        public SelectScope(object selectValue, Scope scope) : base(scope)
+        {
+            _selectValue = selectValue;
+        }
+
+        public override object GetValue(string variableName)
+        {
+            try
+            {
+                return base.GetValue(variableName);
+            }
+            catch (ArgumentException)
+            {
+                return _selectValue;
+            }
+            
+        }
     }
 }

@@ -55,7 +55,7 @@ namespace HaxlSharp.Test
 
                 .FetchRequest<FetchPosts, ShowList<int>>(_ =>
                 {
-                    return ShowList(Enumerable.Range(0, 50));
+                    return ShowList(Enumerable.Range(0, 1000));
                 })
 
                 .FetchRequest<FetchDuplicatePosts, ShowList<int>>(_ =>

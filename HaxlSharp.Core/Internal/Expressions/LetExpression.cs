@@ -19,7 +19,7 @@ namespace HaxlSharp.Internal
         /// If we were to write a select with all these attributes:
         /// 
         /// </remarks>
-        public static bool IsLetExpression<A, B>(Expression<Func<A, B>> expression)
+        public static bool IsLetExpression(LambdaExpression expression)
         {
             if (expression.Body.NodeType != ExpressionType.New) return false;
             var newExpression = (NewExpression)expression.Body;

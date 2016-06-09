@@ -34,6 +34,7 @@ namespace HaxlSharp.Internal
             Project = project;
         }
 
+        public bool IsSelect { get; set; }
         public readonly LambdaExpression Bind;
         public readonly LambdaExpression Project;
     }

@@ -22,6 +22,7 @@ namespace HaxlSharp.Internal
         public readonly BindProjectPair Expressions;
         public readonly ExpressionVariables BindVariables;
         public readonly ExpressionVariables ProjectVariables;
+        public bool IsSelect { get; set; }
 
         public BindProjectStatement(BindProjectPair expressions, ExpressionVariables bindVars, ExpressionVariables projectVars)
         {
