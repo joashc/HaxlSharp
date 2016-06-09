@@ -39,7 +39,7 @@ namespace HaxlSharp.Internal
             }
             var bindVars = ParseExpression.GetExpressionVariables(pair.Bind);
             var projectVars = ParseExpression.GetExpressionVariables(project);
-            return new BindProjectStatement(pair, bindVars, projectVars) {IsSelect = pair.IsSelect};
+            return new BindProjectStatement(pair, bindVars, projectVars) { IsSelect = pair.IsSelect };
         }
 
 
@@ -106,10 +106,9 @@ namespace HaxlSharp.Internal
             IEnumerable<QueryStatement> statements)
         {
             var applicatives = new List<ApplicativeGroup>();
-            var currentlyBinding = initial;
-            ExpressionVariables currentlyBindingVars = null;
+            LambdaExpression previousProject = initial;
+            ExpressionVariables previousProjectVars = null;
             var currentApplicative = new List<Statement>();
-            string bindParam = null;
             var boundInGroup = new List<string>();
 
             Action split = () =>
@@ -124,71 +123,77 @@ namespace HaxlSharp.Internal
             foreach (var statement in statements)
             {
                 var blockNumber = statement.BlockNumber;
-                var accessPrevious = !first && statement.StartsBlock ? 1 : 0;
-                Func<LambdaExpression, string, BoundExpression> boundExpression =
-                    (e, s) => new BoundExpression(e, s, blockNumber - accessPrevious);
+                Func<LambdaExpression, string, BoundExpression>
+                boundExpression = (e, s) => new BoundExpression(e, s, blockNumber);
+
                 statement.Match(
                     bind =>
                     {
-                        var bindName = bind.BindVariables.ParameterNames.First();
-                        var prefixed = PrefixedVariable(blockNumber, bindName);
+                        // The result of the previous monad is bound to this variable name.
+                        var previousBindName = bind.BindVariables.ParameterNames.First();
+                        var prefixed = PrefixedVariable(blockNumber, previousBindName);
 
-                        if (first)
+                        if (first) // Add the initial fetch. 
                         {
-                            currentApplicative.Add(new BindStatement(boundExpression(currentlyBinding, prefixed)));
+                            currentApplicative.Add(new BindStatement(boundExpression(initial, prefixed)));
                         }
 
-                        bindParam = PrefixedVariable(blockNumber, bind.ProjectVariables.ParameterNames.Last());
                         var shouldSplit = ShouldSplit(bind.BindVariables, boundInGroup);
                         if (shouldSplit) split();
 
+                        // If we're at the beginning of a new block, we should add the previous project statement.
                         if (bind.StartsBlock && !first)
                         {
-                            var splitBlock = currentlyBindingVars != null
-                                             && ShouldSplit(currentlyBindingVars, boundInGroup);
+                            var splitBlock = previousProjectVars != null && ShouldSplit(previousProjectVars, boundInGroup);
                             if (splitBlock) split();
                             boundInGroup.Clear();
                             currentApplicative.Add(
-                                new ProjectStatement(boundExpression(currentlyBinding, prefixed)));
+                                // This project was from the previous block, so we subtract one here.
+                                new ProjectStatement(new BoundExpression(previousProject, prefixed, blockNumber - 1)));
                             if (shouldSplit) split();
                         }
 
-                        currentApplicative.Add(new BindStatement(boundExpression(bind.Expressions.Bind, bindParam)));
+                        // The result of the current monad is bound to the second parameter of the project fuction:
+                        // x.SelectMany(
+                        //     a => m a,
+                        //     a, b => new { a, b }  
+                        //                   // ^ this b is the result of m a.
+                        // )
+                        var bindName = PrefixedVariable(blockNumber, bind.ProjectVariables.ParameterNames.Last());
+                        currentApplicative.Add(new BindStatement(boundExpression(bind.Expressions.Bind, bindName)));
 
+                        // We take the final projection function and bind it to the HAXL_RESULT_NAME constant.
                         if (bind.IsFinal)
                         {
                             split();
-                            currentApplicative.Add(
-                                new ProjectStatement(new BoundExpression(bind.Expressions.Project, HAXL_RESULT_NAME,
-                                    blockNumber)));
+                            currentApplicative.Add(new ProjectStatement(boundExpression(bind.Expressions.Project, HAXL_RESULT_NAME)));
                         }
 
-                        currentlyBinding = bind.Expressions.Project;
-                        currentlyBindingVars = bind.ProjectVariables;
+                        // Push out the project function and its variables in case it's the final select of 
+                        // a nested block and we need to bind it.
+                        previousProject = bind.Expressions.Project;
+                        previousProjectVars = bind.ProjectVariables;
+
                         boundInGroup.AddRange(bind.ProjectVariables.ParameterNames);
                         return Base.Unit;
                     },
                     let =>
                     {
                         var paramNames = let.Variables.ParameterNames;
-                        var bindName = paramNames.First();
-                        var prefixed = PrefixedVariable(blockNumber, bindName);
-                        var splitBefore = currentlyBindingVars != null && ShouldSplit(currentlyBindingVars, boundInGroup);
-                        if (splitBefore) split();
-                        if (first) currentApplicative.Add(new BindStatement(boundExpression(currentlyBinding, prefixed)));
-                        else if (!LetExpression.IsLetExpression(currentlyBinding)) currentApplicative.Add(new ProjectStatement(boundExpression(currentlyBinding, prefixed)));
+                        var previousBindName = paramNames.First();
+                        var prefixed = PrefixedVariable(blockNumber, previousBindName);
+                        if (ShouldSplit(previousProjectVars, boundInGroup)) split();
 
+                        // The initial lambda is always returns a monad, so we place it into a bind.
+                        if (first) currentApplicative.Add(new BindStatement(boundExpression(previousProject, prefixed)));
+                        else if (!LetExpression.IsLetExpression(previousProject)) currentApplicative.Add(new ProjectStatement(boundExpression(previousProject, prefixed)));
 
                         boundInGroup.Add(let.Variables.ParameterNames.First());
-                        var shouldSplit = ShouldSplit(let.Variables, boundInGroup);
-                        if (shouldSplit)
-                        {
-                            split();
-                        }
-                        
+
+                        if (ShouldSplit(let.Variables, boundInGroup)) split();
+
                         boundInGroup.Add(let.Name);
-                        currentApplicative.Add(
-                            new ProjectStatement(boundExpression(let.Expression, PrefixedVariable(blockNumber, let.Name))));
+                        currentApplicative.Add(new ProjectStatement(boundExpression(let.Expression, PrefixedVariable(blockNumber, let.Name))));
                         return Base.Unit;
                     }
                     );
@@ -203,6 +208,7 @@ namespace HaxlSharp.Internal
         /// </summary>
         private static bool ShouldSplit(ExpressionVariables vars, List<string> boundInGroup)
         {
+            if (vars == null) return false;
             if (vars.BindsNonTransparentParam) return true;
             if (vars.Bound.Any(boundInGroup.Contains)) return true;
             return false;

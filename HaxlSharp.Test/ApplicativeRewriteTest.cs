@@ -182,6 +182,22 @@ namespace HaxlSharp.Test
                         select postInfo2.PostTopic + id2;
 
             var result = await fetch.FetchWith(fetcher, cache);
+            Assert.AreEqual("Topic 11", result);
+        }
+
+        [TestMethod]
+        public async Task FinalLetNotation()
+        {
+            var id = 0;
+            var fetch = from postInfo in FetchPostInfo(id)
+                        let x = 3
+                        from postInfo2 in FetchPostInfo(1)
+                        let id2 = 1 + postInfo.PostId + 3
+                        select postInfo2.PostTopic + id2 + x;
+
+            var result = await fetch.FetchWith(fetcher, cache);
+            Assert.AreEqual("Topic 143", result);
+            
         }
 
         [TestMethod]

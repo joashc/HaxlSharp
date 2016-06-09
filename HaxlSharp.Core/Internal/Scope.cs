@@ -76,9 +76,13 @@ namespace HaxlSharp.Internal
         public IEnumerable<object> ShallowValues => boundVariables.Values;
     }
 
+    /// <summary>
+    /// A specialized scope object that will return a fixed value for the first unknown key request.
+    /// </summary>
     public class SelectScope : Scope
     {
         private readonly object _selectValue;
+        private string _unknownName;
         public SelectScope(object selectValue, Scope scope) : base(scope)
         {
             _selectValue = selectValue;
@@ -92,6 +96,9 @@ namespace HaxlSharp.Internal
             }
             catch (ArgumentException)
             {
+                if (_unknownName != null && variableName != _unknownName)
+                    throw new ArgumentException("Attempted to access more than one unknown variable.");
+                _unknownName = variableName;
                 return _selectValue;
             }
             

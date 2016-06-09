@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>HaxlSharp</title>
+    <authors>joashc</authors>
+    <projectUrl>https://github.com/joashc/HaxlSharp</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Contains core HaxlSharp functionality as well as a fetcher implementation.</description>
+    <releaseNotes>Initial release.</releaseNotes>
+    <copyright>Copyright © 2016 Joash Chong</copyright>
+  </metadata>
+</package>
