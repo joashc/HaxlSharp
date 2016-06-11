@@ -23,9 +23,19 @@ namespace HaxlSharp.Internal
             return new ShowList<A>(list);
         }
 
-        public static bool Not(bool b)
+        public static InformationLogEntry Info(string info)
         {
-            return !b;
+            return new InformationLogEntry(info);
+        }
+
+        public static WarningLogEntry Warn(string warn)
+        {
+            return new WarningLogEntry(warn);
+        }
+
+        public static ErrorLogEntry Error(string error)
+        {
+            return new ErrorLogEntry(error);
         }
 
         public static Unit Unit = new Unit();

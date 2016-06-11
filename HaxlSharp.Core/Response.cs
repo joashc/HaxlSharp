@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace HaxlSharp.Internal
+namespace HaxlSharp
 {
     /// <summary>
     /// The result of a primitive request. 

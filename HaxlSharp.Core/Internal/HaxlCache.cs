@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace HaxlSharp.Internal
 {
+    /// <summary>
+    /// Caches results per-request for deduplication.
+    /// </summary>
     public class HaxlCache
     {
         private readonly CacheKeyGenerator _keyGenerator;

@@ -9,12 +9,20 @@ namespace HaxlSharp.Internal
     /// </summary>
     public class Haxl
     {
-        public Haxl(Func<HaxlCache, Result> result)
+        /// <summary>
+        /// The result of the fetch.
+        /// </summary>
+        /// <remarks>
+        /// Accessing a Done result before it's fetched is a framework error.
+        /// </remarks>
+        public readonly Func<HaxlCache, Action<HaxlLogEntry>, Result> Result;
+
+        public Haxl(Func<HaxlCache, Action<HaxlLogEntry>, Result> result)
         {
             Result = result;
         }
 
-        public static Haxl FromFunc(Func<HaxlCache, Result> resultFunc)
+        public static Haxl FromFunc(Func<HaxlCache, Action<HaxlLogEntry>, Result> resultFunc)
         {
             return new Haxl(resultFunc);
         }
@@ -27,7 +35,7 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static Haxl Pure(string bindTo, object value)
         {
-            return FromFunc(cache => Done.New(scope => scope.Add(bindTo, value)));
+            return FromFunc((cache, logger) => Done.New(scope => scope.Add(bindTo, value)));
         }
 
         /// <summary>
@@ -35,22 +43,14 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static Haxl Identity()
         {
-            return FromFunc(cache => Done.New(s => s));
+            return FromFunc((cache, logger) => Done.New(s => s));
         }
-
-        /// <summary>
-        /// The result of the fetch.
-        /// </summary>
-        /// <remarks>
-        /// Accessing a Done result before it's fetched is a framework error.
-        /// </remarks>
-        public readonly Func<HaxlCache, Result> Result;
 
         public Haxl Map(Func<Scope, Scope> addResult)
         {
-            return new Haxl(cache =>
+            return new Haxl((cache, logger) =>
             {
-                var result = Result(cache);
+                var result = Result(cache, logger);
                 return result.Match<Result>(
                     done => Done.New(compose(addResult, done.AddToScope)),
                     blocked => Blocked.New(blocked.BlockedRequests, blocked.Continue.Map(addResult))
@@ -66,11 +66,11 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static Haxl Bind(this Haxl fetch, Func<Scope, Haxl> bind)
         {
-            return Haxl.FromFunc(cache =>
+            return Haxl.FromFunc((cache, logger) =>
             {
-                var result = fetch.Result(cache);
+                var result = fetch.Result(cache, logger);
                 return result.Match(
-                    done => bind(done.AddToScope(Scope.New())).Result(cache),
+                    done => bind(done.AddToScope(Scope.New())).Result(cache, logger),
                     blocked => Blocked.New(blocked.BlockedRequests, blocked.Continue.Bind(bind))
                 );
             });
@@ -96,10 +96,10 @@ namespace HaxlSharp.Internal
         /// </remarks>
         public static Haxl Applicative(this Haxl fetch1, Haxl fetch2)
         {
-            return Haxl.FromFunc(cache =>
+            return Haxl.FromFunc((cache, logger) =>
             {
-                var result1 = fetch1.Result(cache);
-                var result2 = fetch2.Result(cache);
+                var result1 = fetch1.Result(cache, logger);
+                var result2 = fetch2.Result(cache, logger);
                 return result1.Match
                 (
                     done1 => result2.Match<Result>

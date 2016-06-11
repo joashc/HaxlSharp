@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using static HaxlSharp.Internal.Base;
 using HaxlSharp.Internal;
+using System.Diagnostics;
 
 namespace HaxlSharp
 {
@@ -78,14 +79,18 @@ namespace HaxlSharp
             this.request = request;
         }
 
+        public object WarnIfNull(object result, Action<HaxlLogEntry> logger)
+        {
+            if (result == null) logger(Warn($"The request type '{request.GetType().Name}' returned a null."));
+            return result;
+        }
+
         public override Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
             Func<Task<object>, Haxl> DoneFromTask =
-                t => Haxl.FromFunc(
-                    c => Done.New(_ => scope.Add(bindTo, t.Result))
-                );
+                t => Haxl.FromFunc((c, l) => Done.New(_ => scope.Add(bindTo, WarnIfNull(t.Result, l))));
 
-            return Haxl.FromFunc(cache =>
+            return Haxl.FromFunc((cache, logger) =>
             {
                 var cacheResult = cache.Lookup(request);
                 return cacheResult.Match<Result>
@@ -95,9 +100,9 @@ namespace HaxlSharp
                             var blocked = new BlockedRequest(request, request.GetType(), bindTo);
                             cache.Insert(request, blocked);
                             return Blocked.New(
-                                new List<BlockedRequest> {blocked},
+                                new List<BlockedRequest> { blocked },
                                 DoneFromTask(blocked.Resolver.Task)
-                                );
+                            );
                         },
                         found =>
                         {
@@ -106,12 +111,12 @@ namespace HaxlSharp
                                 return Done.New(_ =>
                                 {
                                     var result = task.Result;
-                                    return scope.Add(bindTo, result);
+                                    return scope.Add(bindTo, WarnIfNull(result, logger));
                                 });
                             return Blocked.New(
                                 new List<BlockedRequest>(),
                                 DoneFromTask(task)
-                                );
+                            );
                         }
                     );
             });
@@ -138,9 +143,9 @@ namespace HaxlSharp
         {
             var childScope = new Scope(parentScope);
             var binds = List.Select(Bind).ToList();
-            var fetches = binds.Select((f, i) => f.ToHaxlFetch(i.ToString(), childScope)).ToList();
+            var fetches = binds.Select((f, i) => f.ToHaxlFetch($"{bindTo}[{i}]", childScope)).ToList();
             var concurrent = fetches.Aggregate((f1, f2) => f1.Applicative(f2));
-            return concurrent.Bind(scope => Haxl.FromFunc(cache => Done.New(_ =>
+            return concurrent.Bind(scope => Haxl.FromFunc((cache, logger) => Done.New(_ =>
             {
                 var values = scope.ShallowValues.Select(v => (B)v).ToList();
                 return scope.WriteParent(bindTo, values);
@@ -164,7 +169,7 @@ namespace HaxlSharp
 
         public override Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
-            return Haxl.FromFunc(cache => Done.New(_ => scope.Add(bindTo, Value)));
+            return Haxl.FromFunc((cache, logger) => Done.New(_ => scope.Add(bindTo, Value)));
         }
     }
 
@@ -194,7 +199,7 @@ namespace HaxlSharp
                 }
 
                 var blockNumber = newScope.GetLatestBlockNumber();
-                var rebinder = new RebindToScope() { BlockCount = blockNumber};
+                var rebinder = new RebindToScope() { BlockCount = blockNumber };
                 var rewritten = rebinder.Rebind(Map);
                 return scope.Add(bindTo, rewritten.Compile().DynamicInvoke(newScope));
             });
@@ -229,11 +234,14 @@ namespace HaxlSharp
             return new RequestSequence<A, B>(list, bind);
         }
 
-        public static async Task<A> FetchWith<A>(this Fetch<A> fetch, Fetcher fetcher, HaxlCache cache)
+        public static async Task<A> FetchWith<A>(this Fetch<A> fetch, Fetcher fetcher, HaxlCache cache, Action<HaxlLogEntry> logger)
         {
             var run = fetch.ToHaxlFetch(HAXL_RESULT_NAME, Scope.New());
-            var scope = await RunFetch.Run(run, Scope.New(), fetcher.FetchBatch, cache);
-            return (A)scope.GetValue(HAXL_RESULT_NAME);
+            var scope = await RunFetch.Run(run, Scope.New(), fetcher.FetchBatch, cache, logger);
+            var result = (A)scope.GetValue(HAXL_RESULT_NAME);
+            logger(Info("==== Result ===="));
+            logger(Info($"{result}"));
+            return result;
         }
     }
 }

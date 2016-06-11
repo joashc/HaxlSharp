@@ -13,9 +13,20 @@ namespace HaxlSharp.Test
         public int PostId { get; set; }
     }
 
-    public class FetchPosts : Returns<ShowList<int>> { }
+    public class FetchPosts : Returns<IEnumerable<int>> { }
 
     public class FetchDuplicatePosts : Returns<ShowList<int>> { }
+
+    public class GetPerson : Returns<Person>
+    {
+        public readonly int PersonId;
+        public GetPerson(int personId)
+        {
+            PersonId = personId;
+        }
+    }
+
+    public class GetNullPerson : Returns<Person> { }
 
     public class FetchPostInfo : Returns<PostInfo>
     {
@@ -46,14 +57,53 @@ namespace HaxlSharp.Test
         }
     }
 
+    public class Person
+    {
+        public int PersonId;
+        public string Name;
+        public IEnumerable<int> BestFriendIds;
+
+        public override string ToString()
+        {
+            return $"Person {{ PersonId: {PersonId}, Name: {Name}, BestFriendIds: {BestFriendIds}  }}";
+        }
+    }
+
+
 
     public static class Blog
     {
-        public static Fetcher Fetcher()
+        public static List<string> Names = new List<string>
+        {
+            "Cherry Greenburg",
+            "Alison Herald",
+            "Michal Zakrzewski",
+            "Chance Kehoe",
+            "Delaine Crago",
+            "Sabina Barrs",
+            "Peg Delosh",
+            "Johnie Wengerd",
+            "Shayne Knauer",
+            "Tyson Dave",
+            "Shandra Hanlin",
+            "Rey Pita",
+            "Jacquelyn Bivona",
+            "Cristal Hornak",
+            "Julieta Kilbane",
+            "Terry Cavin",
+            "Peppa Pig",
+            "Charity Gadsden",
+            "Antione Domingo",
+            "Corazon Benito",
+            "Tianna Bratton",
+        };
+
+
+        public static DefaultHaxlFetcher Fetcher()
         {
             return FetcherBuilder.New()
 
-                .FetchRequest<FetchPosts, ShowList<int>>(_ =>
+                .FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
                 {
                     return ShowList(Enumerable.Range(0, 10));
                 })
@@ -66,7 +116,7 @@ namespace HaxlSharp.Test
                 .FetchRequest<FetchPostInfo, PostInfo>(req =>
                 {
                     var postId = req.PostId;
-                    return new PostInfo(postId, DateTime.Today.AddDays(-postId), $"Topic {postId % 3}");
+                    return new PostInfo(postId, DateTime.Today.AddDays(-postId), $"Topic {postId % 3}", (postId * 33) % 20);
                 })
 
                 .FetchRequest<FetchPostContent, string>(req =>
@@ -79,11 +129,33 @@ namespace HaxlSharp.Test
                     return (req.PostId * 33) % 53;
                 })
 
+                .FetchRequest<GetNullPerson, Person>(req =>
+               {
+                   return null;
+               })
+
+                .FetchRequest<GetPerson, Person>(req =>
+               {
+                   var nameIndex = (req.PersonId * 33) % 20;
+                   return new Person
+                   {
+                       Name = Names.ElementAt(nameIndex),
+                       BestFriendIds = ShowList(new List<int>
+                        {
+                            (nameIndex + 3) % 20,
+                            (nameIndex + 5) % 20,
+                            (nameIndex + 7) % 20
+                        }),
+                       PersonId = req.PersonId
+                   };
+
+               })
+
                 .FetchRequest<GetTwoLatestPosts, Tuple<int, int>>(req =>
                 {
-                    return new Tuple<int, int>(0, 1);
+                    return new Tuple<int, int>(3, 4);
                 })
-
+                .LogToDebug(true)
                 .Create();
         }
 
@@ -97,7 +169,7 @@ namespace HaxlSharp.Test
             return new FetchDuplicatePosts().ToFetch();
         }
 
-        public static Fetch<ShowList<int>> FetchAllPostIds()
+        public static Fetch<IEnumerable<int>> FetchAllPostIds()
         {
             return new FetchPosts().ToFetch();
         }
@@ -123,10 +195,23 @@ namespace HaxlSharp.Test
             return new FetchPostViews(postId).ToFetch();
         }
 
+        public static Fetch<ShowList<Person>> FetchPostAuthorFriends(int postId)
+        {
+            return from info in FetchPostInfo(postId)
+                   from author in GetPerson(info.AuthorId)
+                   from friends in author.BestFriendIds.SelectFetch(Blog.GetPerson)
+                   select ShowList(friends);
+        }
+
+        public static Fetch<Person> FetchNullPerson()
+        {
+            return new GetNullPerson().ToFetch();
+        }
+
         public static Fetch<PostDetails> GetPostDetails(int postId)
         {
             var x = from info in FetchPostInfo(postId)
-                    from content in FetchPostContent(postId)
+                    from content in FetchPostContent(info.PostId)
                     select new PostDetails(info, content);
             return x;
         }
@@ -136,6 +221,11 @@ namespace HaxlSharp.Test
             return from postIds in FetchAllPostIds()
                    from postInfo in postIds.SelectFetch(FetchPostInfo)
                    select postInfo;
+        }
+
+        public static Fetch<Person> GetPerson(int personId)
+        {
+            return new GetPerson(personId).ToFetch();
         }
 
         public static Fetch<IEnumerable<string>> RecentPostContent()
@@ -162,7 +252,7 @@ namespace HaxlSharp.Test
 
         public override string ToString()
         {
-            return $"PostDetails {{ {Info}, {Content} }}";
+            return $"PostDetails {{ Info: {Info}, Content: '{Content}' }}";
         }
     }
 

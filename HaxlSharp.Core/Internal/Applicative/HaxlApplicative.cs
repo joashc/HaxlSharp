@@ -12,7 +12,7 @@ namespace HaxlSharp.Internal
         /// </summary>
         public static Func<Scope, Haxl> ProjectToHaxl(ProjectStatement project, string parentBind)
         {
-            return scope => Haxl.FromFunc(cache =>
+            return scope => Haxl.FromFunc((cache, logger) =>
             {
                 var rewritten = RebindToScope.Rebind(project.Expression);
                 var result = rewritten.Compile().DynamicInvoke(scope);
@@ -64,7 +64,7 @@ namespace HaxlSharp.Internal
             if (applicative.Expressions.Count == 1) return StatementToHaxl(expressions.First(), parentBind);
             return scope => applicative.Expressions.Aggregate
                 (
-                    Haxl.FromFunc(c => Done.New(s => s)),
+                    Haxl.FromFunc((c, l) => Done.New(s => s)),
                     (group, be) =>
                     {
                         var haxl = StatementToHaxl(be, parentBind)(scope);

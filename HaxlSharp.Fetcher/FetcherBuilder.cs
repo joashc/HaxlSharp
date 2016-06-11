@@ -12,6 +12,7 @@ namespace HaxlSharp
     {
         private readonly Dictionary<Type, Func<BlockedRequest, Response>> _fetchFunctions;
         private readonly Dictionary<Type, Func<BlockedRequest, Task<Response>>> _asyncFetchFunctions;
+        private bool _logToDebug;
         public FetcherBuilder()
         {
             _fetchFunctions = new Dictionary<Type, Func<BlockedRequest, Response>>();
@@ -88,9 +89,15 @@ namespace HaxlSharp
             return this;
         }
 
-        public Fetcher Create()
+        public FetcherBuilder LogToDebug(bool logToDebug)
         {
-            return new DefaultFetcher(_fetchFunctions, _asyncFetchFunctions);
+            _logToDebug = logToDebug;
+            return this;
+        }
+
+        public DefaultHaxlFetcher Create()
+        {
+            return new DefaultHaxlFetcher(_fetchFunctions, _asyncFetchFunctions, _logToDebug);
         }
     }
 }

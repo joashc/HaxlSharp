@@ -142,10 +142,9 @@ namespace HaxlSharp.Test
                              from z in c(x)
                              select x + y + z;
             var split = Split(expression);
-            Assert.AreEqual(3, SplitCount(split));
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(1, CountAt(split, 1));
-            Assert.AreEqual(1, CountAt(split, 2));
+            Assert.AreEqual(2, CountAt(split, 1));
         }
 
         [TestMethod]
@@ -227,10 +226,9 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Split(expression);
-            Assert.AreEqual(3, SplitCount(split));
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(1, CountAt(split, 1));
-            Assert.AreEqual(1, CountAt(split, 2));
+            Assert.AreEqual(2, CountAt(split, 1));
         }
 
 
@@ -245,10 +243,9 @@ namespace HaxlSharp.Test
                              select added.Concat(multiplied);
 
             var split = Split(expression);
-            Assert.AreEqual(3, SplitCount(split));
+            Assert.AreEqual(2, SplitCount(split));
             Assert.AreEqual(1, CountAt(split, 0));
-            Assert.AreEqual(1, CountAt(split, 1));
-            Assert.AreEqual(1, CountAt(split, 2));
+            Assert.AreEqual(2, CountAt(split, 1));
         }
 
         [TestMethod]

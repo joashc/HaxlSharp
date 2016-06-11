@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>HaxlSharp</RootNamespace>
-    <AssemblyName>HaxlSharp.Core</AssemblyName>
+    <AssemblyName>HaxlSharp.CoreOnly</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -54,6 +54,7 @@
     <Compile Include="Internal\HaxlCache.cs" />
     <Compile Include="Internal\Base\HaxlConstants.cs" />
     <Compile Include="Internal\Haxl.cs" />
+    <Compile Include="HaxlLogEntry.cs" />
     <Compile Include="Internal\RunFetch.cs" />
     <Compile Include="Internal\Scope.cs" />
     <Compile Include="Internal\Applicative\HaxlApplicative.cs" />
@@ -64,7 +65,7 @@
     <Compile Include="Internal\Types\CacheResult.cs" />
     <Compile Include="Internal\Types\ExpressionVariables.cs" />
     <Compile Include="Internal\Types\FreeVariable.cs" />
-    <Compile Include="Internal\Types\Response.cs" />
+    <Compile Include="Response.cs" />
     <Compile Include="Internal\Result.cs" />
     <Compile Include="Internal\Types\Statement.cs" />
     <Compile Include="Internal\Base\Func.cs" />
@@ -72,6 +73,9 @@
     <Compile Include="Internal\Types\Unit.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Returns.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="HaxlSharp.Core.nuspec" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

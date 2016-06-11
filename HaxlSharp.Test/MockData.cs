@@ -11,16 +11,18 @@ namespace HaxlSharp.Test
         public readonly int PostId;
         public readonly DateTime PostDate;
         public readonly string PostTopic;
-        public PostInfo(int postId, DateTime postDate, string postTopic)
+        public readonly int AuthorId;
+        public PostInfo(int postId, DateTime postDate, string postTopic, int authorId)
         {
             PostId = postId;
             PostDate = postDate;
             PostTopic = postTopic;
+            AuthorId = authorId;
         }
 
         public override string ToString()
         {
-            return $"PostInfo {{ PostId: {PostId}, PostDate: {PostDate}, PostTopic: {PostTopic}}}";
+            return $"PostInfo {{ Id: {PostId}, Date: {PostDate.ToShortDateString()}, Topic: '{PostTopic}'}}";
         }
     }
 }
