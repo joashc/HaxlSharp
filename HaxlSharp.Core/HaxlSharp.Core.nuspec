@@ -7,7 +7,7 @@
     <authors>joashc</authors>
     <projectUrl>https://github.com/joashc/HaxlSharp</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Contains only the core HaxlSharp functionality. Use this if you want to implement your own fetcher.</description>
+    <description>Composable data fetching with automatic concurrency and request deduplication. Contains only the core HaxlSharp functionality. If you don't intend to implement your own fetcher, install the "HaxlSharp" package instead.</description>
     <releaseNotes>Initial release.</releaseNotes>
     <copyright>Copyright © 2016 Joash Chong</copyright>
   </metadata>

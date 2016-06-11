@@ -1,5 +1,5 @@
 # HaxlSharp
-A C# implementation of [Haxl](https://github.com/facebook/Haxl) for composable data fetching with automatic request deduplication and batching. Not affiliated with Facebook in any way!
+A C# implementation of [Haxl](https://github.com/facebook/Haxl) for composable data fetching with automatic concurrency and request deduplication. Not affiliated with Facebook in any way!
 
 ## What's wrong with async/ await?
 Async/ await is great for writing sequential-looking code when you're only waiting for a single asynchronous request at a time. But we often want to combine information from multiple data sources, like different calls on the same API, or multiple remote APIs.
