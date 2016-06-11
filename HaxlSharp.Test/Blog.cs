@@ -4,6 +4,7 @@ using System.Linq;
 using static HaxlSharp.Internal.Base;
 using HaxlSharp.Internal;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace HaxlSharp.Test
 {
@@ -130,8 +131,9 @@ namespace HaxlSharp.Test
                     return (req.PostId * 33) % 53;
                 })
 
-                .FetchRequest<GetNullPerson, Person>(req =>
+                .FetchRequest<GetNullPerson, Person>(async req =>
                {
+                   await Task.Delay(10);
                    return null;
                })
 

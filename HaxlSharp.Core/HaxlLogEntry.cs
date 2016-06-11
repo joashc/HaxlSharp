@@ -27,7 +27,7 @@ namespace HaxlSharp
 
         public string ToDefaultString()
         {
-            return $"[{Timestamp.ToShortDateString()}] {Type.PadLeft(5)}: {Message}";
+            return $"[{Timestamp}] {Type.PadLeft(5)}: {Message}";
         }
     }
 

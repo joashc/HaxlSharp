@@ -81,7 +81,7 @@ namespace HaxlSharp
         /// <summary>
         /// Adds an async request handler to the fetcher.
         /// </summary>
-        public FetcherBuilder HandleRequest<Req, Res>(Func<Req, Task<Res>> fetchFunction) where Req : Returns<Res>
+        public FetcherBuilder FetchRequest<Req, Res>(Func<Req, Task<Res>> fetchFunction) where Req : Returns<Res>
         {
             var requestType = typeof(Req);
             ThrowIfRegistered(requestType);
