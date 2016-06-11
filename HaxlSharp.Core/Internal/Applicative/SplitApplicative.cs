@@ -159,8 +159,9 @@ namespace HaxlSharp.Internal
                         //     a, b => new { a, b }  
                         //                   // ^ this b is the result of m a.
                         // )
-                        var bindName = PrefixedVariable(blockNumber, bind.ProjectVariables.ParameterNames.Last());
-                        currentApplicative.Add(new BindStatement(boundExpression(bind.Expressions.Bind, bindName)));
+                        var bindName = bind.ProjectVariables.ParameterNames.Last();
+                        var prefixedBindName = PrefixedVariable(blockNumber, bindName);
+                        currentApplicative.Add(new BindStatement(boundExpression(bind.Expressions.Bind, prefixedBindName)));
 
                         // We take the final projection function and bind it to the HAXL_RESULT_NAME constant.
                         if (bind.IsFinal)
@@ -174,7 +175,9 @@ namespace HaxlSharp.Internal
                         previousProject = bind.Expressions.Project;
                         previousProjectVars = bind.ProjectVariables;
 
-                        boundInGroup.AddRange(bind.ProjectVariables.ParameterNames);
+                        // If we've split the only dependency is the current monad.
+                        if (shouldSplit) boundInGroup.Add(bindName);
+                        else boundInGroup.AddRange(bind.ProjectVariables.ParameterNames);
                         return Base.Unit;
                     },
                     let =>
