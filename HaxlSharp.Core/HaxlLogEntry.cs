@@ -9,25 +9,36 @@ namespace HaxlSharp
     public interface HaxlLogEntry
     {
         X Match<X>(Func<InformationLogEntry, X> info, Func<WarningLogEntry, X> warn, Func<ErrorLogEntry, X> error);
+        string ToDefaultString();
    }
 
     public abstract class BaseLogEntry : HaxlLogEntry
     {
         public readonly DateTime Timestamp;
+        public abstract string Message { get; }
+        public abstract string Type { get; }
+
         public BaseLogEntry()
         {
             Timestamp = DateTime.Now;
         }
 
         public abstract X Match<X>(Func<InformationLogEntry, X> info, Func<WarningLogEntry, X> warn, Func<ErrorLogEntry, X> error);
+
+        public string ToDefaultString()
+        {
+            return $"[{Timestamp.ToShortDateString()}] {Type.PadLeft(5)}: {Message}";
+        }
     }
 
     public class InformationLogEntry : BaseLogEntry
     {
-        public readonly string Information;
+        public override string Message { get; }
+        public override string Type => "INFO";
+
         public InformationLogEntry(string info)
         {
-            Information = info;
+            Message = info;
         }
 
         public override X Match<X>(Func<InformationLogEntry, X> info, Func<WarningLogEntry, X> warn, Func<ErrorLogEntry, X> error)
@@ -38,10 +49,11 @@ namespace HaxlSharp
 
     public class WarningLogEntry : BaseLogEntry
     {
-        public readonly string Warning;
+        public override string Message { get; }
+        public override string Type => "WARN";
         public WarningLogEntry(string warning)
         {
-            Warning = warning;
+            Message = warning;
         }
 
         public override X Match<X>(Func<InformationLogEntry, X> info, Func<WarningLogEntry, X> warn, Func<ErrorLogEntry, X> error)
@@ -52,15 +64,17 @@ namespace HaxlSharp
 
     public class ErrorLogEntry : BaseLogEntry
     {
-        public readonly string Error;
+        public override string Message { get; }
+        public override string Type => "ERROR";
         public ErrorLogEntry(string error)
         {
-            Error = error;
+            Message = error;
         }
 
         public override X Match<X>(Func<InformationLogEntry, X> info, Func<WarningLogEntry, X> warn, Func<ErrorLogEntry, X> error)
         {
             return error(this);
         }
+
     }
 }

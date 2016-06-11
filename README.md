@@ -170,7 +170,7 @@ public static Fetch<IEnumerable<Person>> PostAuthorFriends(int postId)
 }
 ```
 
-Here, we're using `SelectFetch`, which lets us run a request for every item in a list, and get back the list of results.  (`SelectFetch` has the signature `[a] -> (a -> Fetch a) -> Fetch [a]`- basically a monomorphic `sequence` to Haskellers).
+Here, we're using `SelectFetch`, which lets us run a request for every item in a list, and get back the list of results.  (`SelectFetch` has the signature `[a] -> (a -> Fetch a) -> Fetch [a]`- basically a monomorphic `sequenceA` to Haskellers).
 
 Let's fetch `PostAuthorFriends(3)`:
 
@@ -192,7 +192,9 @@ Fetched 'friends[1]': Person { PersonId: 12, Name: Peppa Pig, BestFriendIds: [ 1
   Person { PersonId: 14, Name: Michal Zakrzewski, BestFriendIds: [ 5, 7, 9 ]  } ]
 ```
 
-Here, we run `GetPerson` on the list of three `BestFriendIds`, and get a list of three `Person` objects. Let's try to get some duplicate requests: 
+We ran `GetPerson` on the list of three `BestFriendIds`, and got a list of three `Person` objects. Each item in the list was fetched in a single concurrent batch.
+
+Now let's see how we handle duplicate requests: 
 
 ```cs
 from ids in FetchTwoLatestPosts()
@@ -252,18 +254,12 @@ public class FetchPostInfo : Returns<PostInfo>
 ```
 
 ### Using the requests
-We need to convert these requests from a `Returns<>` into a `Fetch<>` if we want to get our concurrent fetching and composability: 
-
-```cs
-Fetch<PostInfo> fetchInfo = new FetchPostInfo(2).ToFetch();
-```
-
-It's a bit cumbersome to `new` up a request object every time we want to make a request, especially if we're going to be composing them. So we can write a method that returns a `Fetch<>` for every request:
+This library operates on `Fetch<>` objects, so we write functions that create `Returns<>` objects and then call `ToFetch` on them:
 
 ```cs
 public static Fetch<PostInfo> GetPostInfo(int postId)
 {
-  return new FetchPostInfo(postId).ToFetch();
+    return new FetchPostInfo(postId).ToFetch();
 }
 ```
 
@@ -290,22 +286,10 @@ Of course, the data must come from somewhere, so we must create handlers for eve
 
 ```cs
 var fetcher = FetcherBuilder.New()
-
-.FetchRequest<FetchPosts, IEnumerable<int>>(_ =>
-{
-    return _postApi.GetAllPostIds();
-})
-
-.FetchRequest<FetchPostInfo, PostInfo>(req =>
-{
-    return _postApi.GetPostInfo(req.PostId);
-})
-
-.FetchRequest<FetchUser, User>(req => {
-    return _userApi.GetUser(req.UserId);
-})
-
-.Create();
+  .FetchRequest<FetchPosts, IEnumerable<int>>(_ => _postApi.GetAllPostIds())
+  .FetchRequest<FetchPostInfo, PostInfo>(req => _postApi.GetPostInfo(req.PostId))
+  .FetchRequest<FetchUser, User>(req => _userApi.GetUser(req.UserId))
+  .Create();
 ```
 
 This object can be injected wherever you want to resolve a `Fetch<A>` into an `A`:
@@ -322,7 +306,37 @@ Fetch<IEnumerable<string>> getPopularContent =
 IEnumerable<string> popularContent = await fetcher.Fetch(getPopularContent);
 ```
 
-Ideally, we should work within the `Fetch<>` monad as much as possible, and only resolve the final `Fetch<>` when absolutely necessary. This ensures the framework performs the fetches in the most efficient way.
+We should work within the `Fetch<>` monad as much as possible, and only resolve the final `Fetch<>` when absolutely necessary. This ensures the framework performs the fetches in the most efficient way.
+
+### Implementing your own fetcher
+This library comes with a default fetching and caching strategy, but it's possible to implement your own.
+
+#### Why would you want to implement your own fetcher/ caching strategy?
+
+- You think there's too much boilerplate with the default fetcher. The current implementation is optimized to make it easy to integrate with existing request objects, at the cost of slightly more boilerplate.
+- You don't want the overhead of serializing every request object to get a cache key, and/ or already have a way to create cache keys from your request objects.
+- You can do something clever with a batch of requests- you might bundle them up and send them to a particular server, for example.
+- You want to inject default values of failed requests
+
+#### Fetcher
+The fetcher interface mainly requires you to implement: 
+
+```cs
+Task FetchBatch(IEnumerable<BlockedRequest> requests);
+```
+
+A blocked request contains a request object and a `TaskCompletionSource`, which allows us to manually create and resolve `Task` objects- think Javascript promises. You'll want to map the list of blocked requests to a list of `Task`s, and manually resolve each one with the result of its respective request. 
+
+Then you just return `Task.WhenAll` on the list of tasks!
+
+#### Caching
+To customize the caching behaviour, you need  to implement a function that returns a cache key for a request:
+
+```cs
+string ForRequest<A>(Returns<A> request);
+```
+
+Note that this is not traditional caching- it's intrarequest caching used for request deduplication and consistency. You'll still want to have a traditional caching layer.
 
 ## Limitations
 This library is still in its very early stages! Here is a very incomplete list of its limitations:
@@ -345,7 +359,7 @@ from b in y
 select new {a, b};
 ```
 
-There a few checks in place so anonymous types won't fail in all circumstances, but unless you want to make sure your expression doesn't meet all of these criteria:
+There a few checks in place so anonymous types won't fail in all circumstances, but unless you want to memorize this list and ensure your expression doesn't meet all of these criteria:
 
 - Expression body is `ExpressionType.New`
 - Creates an anonymous type

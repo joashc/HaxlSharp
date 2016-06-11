@@ -178,7 +178,7 @@ namespace HaxlSharp.Internal
                         // If we've split the only dependency is the current monad.
                         if (shouldSplit) boundInGroup.Add(bindName);
                         else boundInGroup.AddRange(bind.ProjectVariables.ParameterNames);
-                        return Base.Unit;
+                        return UnitVal;
                     },
                     let =>
                     {
@@ -197,7 +197,7 @@ namespace HaxlSharp.Internal
 
                         boundInGroup.Add(let.Name);
                         currentApplicative.Add(new ProjectStatement(boundExpression(let.Expression, PrefixedVariable(blockNumber, let.Name))));
-                        return Base.Unit;
+                        return UnitVal;
                     }
                     );
                 first = false;

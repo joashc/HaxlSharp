@@ -38,6 +38,6 @@ namespace HaxlSharp.Internal
             return new ErrorLogEntry(error);
         }
 
-        public static Unit Unit = new Unit();
+        public static Unit UnitVal = new Unit();
     }
 }

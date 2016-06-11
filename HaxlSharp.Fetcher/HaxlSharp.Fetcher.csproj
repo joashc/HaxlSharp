@@ -43,7 +43,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DefaultFetcher.cs" />
+    <Compile Include="HaxlFetcher.cs" />
     <Compile Include="FetcherBuilder.cs" />
     <Compile Include="HashedRequestKey.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

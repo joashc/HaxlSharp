@@ -8,30 +8,19 @@ using System.Threading.Tasks;
 
 namespace HaxlSharp
 {
-    public class DefaultHaxlFetcher : Fetcher
+    public class HaxlFetcher : Fetcher
     {
         private readonly Dictionary<Type, Func<BlockedRequest, Response>> _fetchFunctions;
         private readonly Dictionary<Type, Func<BlockedRequest, Task<Response>>> _asyncFetchFunctions;
+        bool isLogging;
 
-        public DefaultHaxlFetcher(Dictionary<Type, Func<BlockedRequest, Response>> fetchFunctions, Dictionary<Type, Func<BlockedRequest, Task<Response>>> asyncFetchFunctions, bool logToDebug)
+        public HaxlFetcher(Dictionary<Type, Func<BlockedRequest, Response>> fetchFunctions, Dictionary<Type, Func<BlockedRequest, Task<Response>>> asyncFetchFunctions, Action<HaxlLogEntry> onLogEntry = null)
         {
             _fetchFunctions = fetchFunctions;
             _asyncFetchFunctions = asyncFetchFunctions;
-            if (logToDebug) OnLogEntry += log =>
-            {
-                log.Match(
-                    info => WriteDebug($"[{info.Timestamp}]:  INFO:  {info.Information}"),
-                    warn => WriteDebug($"[{warn.Timestamp}]:  WARN:  {warn.Warning}"),
-                    error => WriteDebug($"[{error.Timestamp}]: ERROR:  {error.Error}")
-                );
-            };
+            isLogging = onLogEntry != null;
+            if (isLogging) OnLogEntry += log => onLogEntry(log);
             else OnLogEntry += log => { };
-        }
-
-        private Unit WriteDebug(string message)
-        {
-            Debug.WriteLine(message);
-            return Base.Unit;
         }
 
         private void ThrowIfUnhandled(BlockedRequest request)
@@ -77,6 +66,7 @@ namespace HaxlSharp
 
         private void RaiseLogEntry(HaxlLogEntry logEntry)
         {
+            if (!isLogging) return;
             OnLogEntry(logEntry);
         }
 

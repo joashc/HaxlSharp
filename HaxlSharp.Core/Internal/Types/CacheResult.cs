@@ -1,4 +1,5 @@
 ﻿using System;
+using static HaxlSharp.Internal.Base;
 
 namespace HaxlSharp.Internal
 {
@@ -22,7 +23,7 @@ namespace HaxlSharp.Internal
     {
         public override X Match<X>(Func<Unit, X> notFound, Func<BlockedRequest, X> found)
         {
-            return notFound(Base.Unit);
+            return notFound(UnitVal);
         }
     }
 

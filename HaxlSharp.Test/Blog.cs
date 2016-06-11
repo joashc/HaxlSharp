@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using static HaxlSharp.Internal.Base;
 using HaxlSharp.Internal;
+using System.Diagnostics;
 
 namespace HaxlSharp.Test
 {
@@ -99,7 +100,7 @@ namespace HaxlSharp.Test
         };
 
 
-        public static DefaultHaxlFetcher Fetcher()
+        public static HaxlFetcher Fetcher()
         {
             return FetcherBuilder.New()
 
@@ -155,7 +156,7 @@ namespace HaxlSharp.Test
                 {
                     return new Tuple<int, int>(3, 4);
                 })
-                .LogToDebug(true)
+                .LogWith(log => Debug.WriteLine(log.ToDefaultString()))
                 .Create();
         }
 

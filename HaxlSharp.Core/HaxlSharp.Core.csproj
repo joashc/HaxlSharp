@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>HaxlSharp</RootNamespace>
-    <AssemblyName>HaxlSharp.CoreOnly</AssemblyName>
+    <AssemblyName>HaxlSharp.Core</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>

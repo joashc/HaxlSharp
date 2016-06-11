@@ -13,7 +13,7 @@ namespace HaxlSharp.Test
     [TestClass]
     public class ApplicativeRewriteTest
     {
-        public DefaultHaxlFetcher fetcher = Fetcher();
+        public HaxlFetcher fetcher = Fetcher();
 
         [TestMethod]
         public async Task SingleFetch_ShouldHaveOneBatch()
