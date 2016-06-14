@@ -40,6 +40,7 @@ namespace HaxlSharp
         public IEnumerable<BindProjectPair> CollectedExpressions { get; }
 
         public readonly Fetch<A> Fetch;
+        public bool IsLet;
 
         public Bind(IEnumerable<BindProjectPair> binds, Fetch<A> expr)
         {
@@ -52,7 +53,8 @@ namespace HaxlSharp
         public Haxl ToHaxlFetch(string bindTo, Scope scope)
         {
             var bindSplit = SplitApplicative.SplitBind(CollectedExpressions, Initial);
-            return HaxlApplicative.ToFetch(bindSplit, bindTo, new Scope(scope));
+            var newScope = IsLet ? scope : new Scope(scope);
+            return HaxlApplicative.ToFetch(bindSplit, bindTo, newScope);
         }
     }
 
@@ -219,7 +221,7 @@ namespace HaxlSharp
             Expression<Func<A, Fetch<A>>> letBind = _ => self;
             var letProject = LetExpression.RewriteLetExpression(f);
             var letPair = new BindProjectPair(letBind, letProject);
-            return new Bind<A, B, B>(self.CollectedExpressions.Append(letPair), self);
+            return new Bind<A, B, B>(self.CollectedExpressions.Append(letPair), self) {IsLet = true};
         }
 
         public static Fetch<C> SelectMany<A, B, C>(this Fetch<A> self, Expression<Func<A, Fetch<B>>> bind, Expression<Func<A, B, C>> project)
