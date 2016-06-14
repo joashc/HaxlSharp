@@ -265,7 +265,7 @@ This is also helpful for consistency; even though data can change during a fetch
 The [original paper](http://community.haskell.org/~simonmar/papers/haxl-icfp14.pdf) gives a good overview of Haxl. Some differences between the C# and Haskell version are documented [here](http://joashc.github.io/posts/2016-06-11-haxlsharp.html).
 
 ## Integration
-The core functionality is contained in a separate NuGet package to the API you integrate with. The default API is similar to ServiceStack's, but it's straightforward to implement your own API if this one is not to your taste.
+The default API is similar to ServiceStack's, but it's straightforward to implement your own API if this one is not to your taste. You can implement your own API to HaxlSharp by just installing the `HaxlSharp.Core` package, instead of the `HaxlSharp` package, and implementing your own fetcher/ caching strategy. See [Implementing your own fetcher](#implementing-your-own-fetcher) for more details.
 
 ### Defining requests
 You can define requests with POCOs; just annotate their return type like so:
