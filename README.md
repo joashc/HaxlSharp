@@ -39,7 +39,7 @@ Async/ await is great for writing sequential-looking code when you're only waiti
 The async/ await abstraction breaks down in these situations (and Javascript's async/await is no different). To illustrate, let's say we have a blogging site, and a post's metadata and content are retrieved using separate API calls. We could use async/ await to fetch both these pieces of information:
 
 ```cs
-public Task<PostDetails> GetPostDetails(int postId)
+public async Task<PostDetails> GetPostDetails(int postId)
 {
     var postInfo = await FetchPostInfo(postId);
     var postContent = await FetchPostContent(postId);
@@ -49,13 +49,21 @@ public Task<PostDetails> GetPostDetails(int postId)
 
 Here, we're making two successive `await` calls, which means the execution will be suspended at the first request- `FetchPostInfo`- and only begin executing the second request- `FetchPostContent`- once the first request has completed.
 
-But fetching `FetchPostContent` doesn't require the result of `FetchPostInfo`, which means we could have started both these requests concurrently! Async/ await lets us write *asynchronous* code in a nice, sequential-looking way, but doesn't let us write *concurrent* code like this. 
+But fetching `FetchPostContent` doesn't require the result of `FetchPostInfo`, which means we could have started both these requests concurrently! This is true even if we write:
+
+```cs
+var postInfo = FetchPostInfo(postId);
+var postContent = FetchPostContent(postId);
+return new PostDetails(await postInfo, await postContent);
+```
+
+Async/ await lets us write *asynchronous* code in a nice, sequential-looking way, but doesn't let us write *concurrent* code like this. 
 
 ### Composing async methods
 To make matters worse, we can easily call our inefficient `GetPostDetails` method from another method, compounding the oversequentialization:
 
 ```cs
-public Task<IEnumerable<PostDetails> LatestPostContent()
+public async Task<IEnumerable<PostDetails> LatestPostContent()
 {
   var latest = await GetTwoLatestPostIds();
   var first = await GetPostDetails(latest.Item1);
@@ -114,7 +122,6 @@ Fetched 'content': Post 1
 
 ==== Result ====
 PostDetails { Info: PostInfo { Id: 1, Date: 10/06/2016, Topic: 'Topic 1'}, Content: 'Post 1' }
-
 ```
 
 Both requests were automatically placed in a single batch and fetched concurrently!
