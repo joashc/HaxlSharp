@@ -34,7 +34,7 @@ Before you can use the library, you'll need to write a thin layer to get your ex
 Once that's done, you can write your data fetches in a sequential way, and the framework will automatically perform requests as concurrently as possible, and do request deduplication.
 
 ## What's wrong with async/ await?
-Async/ await is great for writing sequential-looking code when you're only waiting for a single asynchronous request at a time. But we often want to combine information from multiple data sources, like different calls on the same API, or multiple remote APIs.
+Async/ await is great for writing sequential-looking code when you're only waiting for a single asynchronous request at a time, allowing us to write code without worrying about asynchronicity. But we often want to combine information from multiple data sources, like different calls on the same API, or multiple remote APIs.
 
 The async/ await abstraction breaks down in these situations (and Javascript's async/await is no different). To illustrate, let's say we have a blogging site, and a post's metadata and content are retrieved using separate API calls. We could use async/ await to fetch both these pieces of information:
 
@@ -49,18 +49,18 @@ public async Task<PostDetails> GetPostDetails(int postId)
 
 Here, we're making two successive `await` calls, which means the execution will be suspended at the first request- `FetchPostInfo`- and only begin executing the second request- `FetchPostContent`- once the first request has completed.
 
-But fetching `FetchPostContent` doesn't require the result of `FetchPostInfo`, which means we could have started both these requests concurrently! This is true even if we write:
+But fetching `FetchPostContent` doesn't require the result of `FetchPostInfo`, which means we could have started both these requests concurrently! The "correct" way to write it is:
 
 ```cs
-var postInfo = FetchPostInfo(postId);
-var postContent = FetchPostContent(postId);
+var postInfoTask = FetchPostInfo(postId);
+var postContentTask = FetchPostContent(postId);
 return new PostDetails(await postInfo, await postContent);
 ```
 
-Async/ await lets us write *asynchronous* code in a nice, sequential-looking way, but doesn't let us write *concurrent* code like this. 
+But now we are dealing with tasks instead of their values; it's up to the programmer to ensure the task is `await`ed as late as possible. Async/ await is a good abstraction for *asynchronous* code, but writing *concurrent* code requires us to mix code that describes *what* we want to fetch with *how* we want to fetch it.
 
 ### Composing async methods
-To make matters worse, we can easily call our inefficient `GetPostDetails` method from another method, compounding the oversequentialization:
+To make matters worse, we can easily call our inefficient `GetPostDetails` method in a way that compounds the oversequentialization:
 
 ```cs
 public async Task<IEnumerable<PostDetails> LatestPostContent()
@@ -72,20 +72,17 @@ public async Task<IEnumerable<PostDetails> LatestPostContent()
 }
 ```
 
-Here's what will happen if we execute this method:
+This code will sequentially execute four calls that could have been executed concurrently! We should actually write our code like this:
 
-- Wait for `GetTwoLatestPostIds`
-- Then wait for the first `GetPostDetails` call, which involves:
-  - Waiting for `FetchPostInfo`
-  - Then waiting for `FetchPostContent`
-- Then wait for the second `GetPostDetails` call, again involving:
-  - Waiting for `FetchPostInfo`
-  - Then waiting for `FetchPostContent`
-
-This code will sequentially execute four calls that could have been executed concurrently!
+```cs
+var latest = await GetTwoLatestPostIds();
+var first = GetPostDetails(latest.Item1);
+var second = GetPostDetails(latest.Item2);
+return new List<PostContent> { await first, await second };
+```
 
 ### What's wrong with `Task.WhenAll`/ `Promise.all`?
-We can manually add concurrency by giving up the sequential-looking code, and sprinkling our code with `Task.WhenAll`.
+We can manually add concurrency by giving up sequential-looking code that doesn't make a distinction between async values and "normal" values. In practice, this means dealing with both tasks and their `await`ed values, and sprinkling our code with `Task.WhenAll`.
 
 But hang on, async/await was designed to solve these problems:
 
@@ -100,9 +97,16 @@ Giving up our sequential abstraction means these exact problems have reemerged i
 - Programmers are bad at reasoning about **concurrent** code
 
 ## Haxl: reclaiming the sequential abstraction
-Haxl allows us to write code that *looks* sequential, but is capable of being analyzed to determine the requests we can fetch concurrently, and then automatically batch these requests together.
+Haxl allows us to write code that *looks* like it operates sequentially on "normal values", but is capable of being analyzed to determine the requests we can fetch concurrently, and then automatically batch these requests into a list.
 
-It also only fetches duplicate requests once, even if the duplicate requests are started concurrently- something we can't achieve with `Task.WhenAll`.
+This has a number of advantages over async/await and `Task.WhenAll`:
+
+- We can write code that uses the results of asynchronous requests, without the risk of losing concurrency.
+- Multiple requests to a single endpoint can be batched and handled more efficiently- for example, multiple concurrent requests to an SQL database could be rewritten into a single `SELECT` statement.
+- We only fetch duplicate requests once, even if the duplicate requests are started concurrently- something we can't achieve with `async` or `Task.WhenAll`.
+- Only fetching data once ensures data remains consistent within a request.
+
+Taken together, these advantages leave programmers free to compose complex data fetches, without worrying about concurrency or duplication. It also lessens the need to traverse large parts of the stack to write specialized data fetching methods. Only a small number of "primitive requests" need to be written across the stack; the rest can be composed from these primitives as necessary.
 
 Let's rewrite `GetPostDetails` using HaxlSharp:
 
@@ -189,7 +193,6 @@ PostDetails { Info: PostInfo { Id: 1, Date: 10/06/2016, Topic: 'Topic 1'}, Conte
 The `info` requests within `GetPostDetails` can be fetched with just the result of `latest`, so they were batched together. The remaining `content` batch can resume once the `info` batch completes.
 
 ### Request deduplication
-
 Because we lazily compose our requests, we can keep track of every subrequest within a particular request, and only fetch a particular subrequest once, even if they're part of the same batch.
 
 Let's say that each post has an author, and each author has three best friends. We could fetch the friends of the author of a given post like this:
