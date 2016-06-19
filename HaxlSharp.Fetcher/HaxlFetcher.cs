@@ -28,7 +28,7 @@ namespace HaxlSharp
             if (!_fetchFunctions.ContainsKey(request.RequestType) && !_asyncFetchFunctions.ContainsKey(request.RequestType))
             {
                 RaiseLogEntry(Error($"No handler for request type '{request.RequestType}' found."));
-                throw new ApplicationException($"No handler for request type '{request.RequestType}' found.");
+                throw new Exception($"No handler for request type '{request.RequestType}' found.");
             }
         }
 
