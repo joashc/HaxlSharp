@@ -17,7 +17,7 @@ namespace HaxlSharp.Internal
         private List<string> paramNames;
         private ParameterExpression scopeParam;
         public int BlockCount { get; set; }
-        private MethodInfo GetValue = typeof(Scope).GetMethod("GetValue");
+        private MethodInfo GetValue = typeof(Scope).GetRuntimeMethod("GetValue", new Type[] { typeof(string) }); // Changed from GetMethod("GetValue");
 
         /// <summary>
         /// Replace all parameters with a single scope parameter, then rewrite body to read from that scope.

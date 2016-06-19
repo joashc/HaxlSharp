@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using static HaxlSharp.Internal.Base;
 
 namespace HaxlSharp.Internal
@@ -41,10 +42,10 @@ namespace HaxlSharp.Internal
             // If we have a transparent identifier, we pull out the appropriate members.
             if (parameter.Name.StartsWith(TRANSPARENT_PREFIX))
             {
-                var members = parameter.Type.GetMembers();
-                return from member in members
-                       where member.MemberType == System.Reflection.MemberTypes.Property && !member.Name.StartsWith(TRANSPARENT_PREFIX)
-                       select new FreeVariable(member.Name, true);
+                var properties = parameter.Type.GetRuntimeProperties();
+                return from property in properties
+                       where !property.Name.StartsWith(TRANSPARENT_PREFIX)
+                       select new FreeVariable(property.Name, true);
             }
             return new List<FreeVariable> { new FreeVariable(parameter.Name, false) };
         }
