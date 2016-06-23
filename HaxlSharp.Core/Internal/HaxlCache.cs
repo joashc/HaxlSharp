@@ -27,7 +27,7 @@ namespace HaxlSharp.Internal
         public void Insert<A>(Returns<A> request, BlockedRequest blocked)
         {
             var key = _keyGenerator.ForRequest(request);
-            if (_cache.ContainsKey(key)) throw new ApplicationException("Internal Haxl error: attempted to cache duplicate request.");
+            if (_cache.ContainsKey(key)) throw new Exception("Internal Haxl error: attempted to cache duplicate request.");
             _cache[key] = blocked;
         }
     }
